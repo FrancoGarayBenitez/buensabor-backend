@@ -8,6 +8,9 @@ import com.elbuensabor.dto.response.MessageResponse;
 import com.elbuensabor.entities.Usuario;
 import com.elbuensabor.services.IAuthService;
 import jakarta.validation.Valid;
+
+import java.util.logging.Logger;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+    private static final Logger logger = Logger.getLogger(AuthController.class.getName());
     private final IAuthService authService;
 
     public AuthController(IAuthService authService) {
@@ -23,12 +27,14 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody ClienteRegisterDTO request){
+        logger.info("=== NUEVO REGISTRO - DevTools funcionando ===");
+        logger.info("Email del registro: " + request.getEmail());
+
         // Llama al servicio que hashea la contraseña, crea Usuario, Cliente y Domicilio
         authService.register(request);
 
         // Tras el registro, se recomienda que el cliente haga un POST /login
-        // Por simplicidad, devolvemos un 201 Created.
-        return ResponseEntity.status(201).body("Registro exitoso. Procede al login.");
+        return ResponseEntity.status(201).body(new MessageResponse("Registro exitoso. Procede al login."));
     }
 
     @PostMapping("/login")

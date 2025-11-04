@@ -35,14 +35,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(
             HttpServletRequest request,
             HttpServletResponse response,
-            FilterChain filterChain
-    ) throws ServletException, IOException {
+            FilterChain filterChain) throws ServletException, IOException {
+
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
         final String userEmail;
 
         // 1. Verificar si el encabezado Authorization está presente y en formato Bearer
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            logger.info("❌ No hay token Bearer, continuando sin autenticación");
             filterChain.doFilter(request, response);
             return;
         }
@@ -58,29 +59,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                 // 5. Cargar UserDetails (usando IAuthService)
-                // Usamos una implementación sencilla de UserDetails basada en tu entidad Usuario:
                 UserDetails userDetails = authService.findByEmail(userEmail);
 
                 // 6. Validar el token y la expiración
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                boolean isTokenValid = jwtService.isTokenValid(jwt, userDetails);
 
+                if (isTokenValid) {
                     // 7. Crear el objeto de autenticación de Spring Security
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
-                            null, // No usamos credenciales (contraseña) aquí
-                            userDetails.getAuthorities() // Asignar roles/permisos
-                    );
+                            null,
+                            userDetails.getAuthorities());
                     authToken.setDetails(
-                            new WebAuthenticationDetailsSource().buildDetails(request)
-                    );
+                            new WebAuthenticationDetailsSource().buildDetails(request));
 
                     // 8. Establecer el usuario como autenticado en el contexto
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+
                 }
             }
         } catch (Exception e) {
-            // Logear o manejar la excepción de un token inválido/expirado
-            logger.warn("JWT inválido o expirado: " + e.getMessage());
+            logger.error("❌ Error procesando JWT: {}", e.getMessage(), e);
         }
 
         filterChain.doFilter(request, response);

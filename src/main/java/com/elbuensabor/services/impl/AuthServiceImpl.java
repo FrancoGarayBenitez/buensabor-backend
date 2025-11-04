@@ -64,10 +64,6 @@ public class AuthServiceImpl implements IAuthService {
         cliente.setTelefono(request.getTelefono());
         cliente.setFechaNacimiento(request.getFechaNacimiento());
 
-        // Establecer la relación bidireccional
-        cliente.setUsuario(usuario);
-        usuario.setCliente(cliente);
-
         // 4. Procesar Imagen (si existe)
         if (request.getImagen() != null && request.getImagen().getUrl() != null) {
             String url = request.getImagen().getUrl();
@@ -81,6 +77,10 @@ public class AuthServiceImpl implements IAuthService {
         Domicilio domicilio = domicilioMapper.toEntity(request.getDomicilio());
         domicilio.setCliente(cliente);
         cliente.getDomicilios().add(domicilio);
+
+        // Establecer la relación bidireccional
+        cliente.setUsuario(usuario);
+        usuario.setCliente(cliente);
 
         // 6. Guardar el usuario (que cascadea el guardado del cliente y domicilio)
         return usuarioRepository.save(usuario);

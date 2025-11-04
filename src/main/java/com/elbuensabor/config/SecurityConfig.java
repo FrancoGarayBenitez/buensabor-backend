@@ -71,35 +71,43 @@ public class SecurityConfig {
 
                 // 3. Definir reglas de autorización de peticiones
                 .authorizeHttpRequests(auth -> auth
-                        // Endpoints de acceso PÚBLICO (Anonimo)
-                        .requestMatchers("/api/v1/auth/**", "/public/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                        // Endpoints de acceso PÚBLICO
+                        .requestMatchers("/api/auth/**", "/public/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+
+                        // Endpoints públicos para el catálogo
                         .requestMatchers(HttpMethod.GET,
-                                "/api/v1/articulos/**",
-                                "/api/v1/categorias/**",
-                                "/api/v1/unidadmedida/**"
-                        ).permitAll() // Permite GETs públicos para el catálogo
+                                "/api/articulos/**",
+                                "/api/categorias/**",
+                                "/api/unidades-medida/**")
+                        .permitAll()
 
-                        // Endpoints que requieren Roles específicos
-                        .requestMatchers("/api/v1/clientes/**").hasAuthority("CLIENTE")
-                        .requestMatchers("/api/v1/pedidos/**").hasAuthority("CLIENTE")
-                        .requestMatchers("/api/v1/perfil/**").hasAnyAuthority("CLIENTE", "ADMIN") // El endpoint de perfil lo pueden ver ambos roles
+                        // CRÍTICO: Este endpoint debe ir ANTES que las reglas más restrictivas
+                        .requestMatchers("/api/perfil").authenticated()
 
-                        // Ejemplo de endpoints para gestión interna (ADMIN, COCINERO, etc.)
-                        .requestMatchers("/api/v1/estadisticas/**").hasAnyAuthority("ADMIN", "COCINERO", "DELIVERY")
+                        // Endpoints específicos para clientes
+                        .requestMatchers("/api/clientes/**").hasAuthority("CLIENTE")
+                        .requestMatchers("/api/pedidos/**").hasAuthority("CLIENTE")
 
-                        // Todas las demás solicitudes requieren autenticación (token válido)
-                        .anyRequest().authenticated()
-                )
+                        // Endpoints administrativos
+                        .requestMatchers("/api/usuarios/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/empleados/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/estadisticas/**").hasAnyAuthority("ADMIN", "COCINERO", "DELIVERY")
+
+                        // WebSocket endpoints
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // Todas las demás solicitudes requieren autenticación
+                        .anyRequest().authenticated())
 
                 // 4. Configurar la gestión de sesión como STATELESS (sin estado)
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // 5. Configurar el proveedor de autenticación
                 .authenticationProvider(authenticationProvider())
 
-                // 6. Añadir el filtro JWT customizado ANTES del filtro de autenticación estándar
+                // 6. Añadir el filtro JWT customizado ANTES del filtro de autenticación
+                // estándar
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -38,7 +38,7 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private Rol rol = Rol.CLIENTE;
 
-    @OneToOne(mappedBy = "usuario")
+    @OneToOne(mappedBy = "usuario", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Cliente cliente; // Relación solo para roles CLIENTE
 
     @Column(nullable = false)

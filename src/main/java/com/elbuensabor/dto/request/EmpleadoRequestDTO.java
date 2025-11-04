@@ -1,5 +1,7 @@
 package com.elbuensabor.dto.request;
 
+import com.elbuensabor.entities.Rol;
+
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,11 +25,9 @@ public class EmpleadoRequestDTO {
     private String email;
 
     @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
-    // Nota: Es una contraseña inicial que el administrador asigna,
-    // por lo que no necesita ser tan compleja como el registro de cliente.
+    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$", message = "La contraseña debe tener al menos 8 caracteres, incluir mayúscula, minúscula, número y símbolo especial")
     private String password;
 
-    @NotBlank(message = "El rol es obligatorio")
-    private String rol;
+    @NotNull(message = "El rol es obligatorio")
+    private Rol rol;
 }

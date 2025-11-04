@@ -19,18 +19,14 @@ public class ActiveUserInterceptor implements HandlerInterceptor {
     private static final Logger logger = LoggerFactory.getLogger(ActiveUserInterceptor.class);
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-
-        // Solo validar en endpoints protegidos (excluir públicos)
-        String requestURI = request.getRequestURI();
-        if (isPublicEndpoint(requestURI)) {
-            return true;
-        }
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
+            throws Exception {
 
         try {
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 
-            // 1. Verificar si hay un principal autenticado (debería ser nuestra entidad Usuario)
+            // 1. Verificar si hay un principal autenticado (debería ser nuestra entidad
+            // Usuario)
             if (authentication != null && authentication.getPrincipal() instanceof Usuario) {
 
                 // ✅ Obtener el objeto Usuario directamente del contexto
@@ -44,27 +40,27 @@ public class ActiveUserInterceptor implements HandlerInterceptor {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setContentType("application/json");
                     response.getWriter().write("""
-                        {
-                            "error": "Usuario desactivado",
-                            "message": "Tu cuenta ha sido desactivada. Contacta al administrador.",
-                            "code": "USER_DEACTIVATED",
-                            "timestamp": "%s"
-                        }
-                        """.formatted(java.time.Instant.now().toString()));
+                            {
+                                "error": "Usuario desactivado",
+                                "message": "Tu cuenta ha sido desactivada. Contacta al administrador.",
+                                "code": "USER_DEACTIVATED",
+                                "timestamp": "%s"
+                            }
+                            """.formatted(java.time.Instant.now().toString()));
 
                     return false; // Bloquear acceso
                 }
 
                 logger.debug("✅ Usuario activo validado: {}", email);
 
-
             } else if (authentication != null && authentication.getPrincipal().equals("anonymousUser")) {
-                // Si es un endpoint protegido pero se permite acceso anónimo (no deberia pasar con SecurityConfig),
+                // Si es un endpoint protegido pero se permite acceso anónimo (no deberia pasar
+                // con SecurityConfig),
                 // o si el filtro JWT falló, puedes optar por devolver false o permitir.
                 // Ya la capa de Spring Security debería haber bloqueado esto.
-                logger.debug("Solicitud con principal no-Usuario (ej. anónimo), permitiendo si no está bloqueado por SecurityConfig.");
+                logger.debug(
+                        "Solicitud con principal no-Usuario (ej. anónimo), permitiendo si no está bloqueado por SecurityConfig.");
             }
-
 
         } catch (Exception e) {
             logger.error("Error validando usuario activo: {}", e.getMessage());
@@ -72,23 +68,5 @@ public class ActiveUserInterceptor implements HandlerInterceptor {
         }
 
         return true; // Permitir acceso (si no fue bloqueado explícitamente)
-    }
-
-    /**
-     * Verifica si el endpoint es público.
-     */
-    private boolean isPublicEndpoint(String requestURI) {
-        return requestURI.startsWith("/api/auth") ||
-                // ... el resto de las rutas públicas ...
-                requestURI.startsWith("/api/categorias") ||
-                requestURI.startsWith("/api/articulos-insumo") ||
-                requestURI.startsWith("/api/unidades-medida") ||
-                requestURI.startsWith("/api/articulos-manufacturados") ||
-                requestURI.startsWith("/payment") ||
-                requestURI.startsWith("/webhooks") ||
-                requestURI.startsWith("/img") ||
-                requestURI.startsWith("/static") ||
-                requestURI.startsWith("/api/images") ||
-                requestURI.contains("/debug");
     }
 }
