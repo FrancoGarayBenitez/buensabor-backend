@@ -1,6 +1,5 @@
 package com.elbuensabor.services;
 
-import com.elbuensabor.dto.request.ImagenDTO;
 import com.elbuensabor.entities.Imagen;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -9,24 +8,17 @@ import java.util.Map;
 
 public interface IImagenService {
 
-    // ==================== OPERACIONES CRUD BÁSICAS ====================
-
-    /**
-     * Solo crea registro en BD con URL existente, diseñado para entidades como Cliente.
-     * Requiere denominacion, ya que es NOT NULL en la entidad Imagen.
-     */
-    Imagen createFromExistingUrl(String denominacion, String url);
-
-    /**
-     * Solo crea registro en BD con URL existente, asociado a un Artículo.
-     */
-    Imagen createFromExistingUrl(String denominacion, String url, Long idArticulo);
+    // ==================== CRUD BÁSICAS ====================
 
     Imagen findById(Long id);
+
     List<Imagen> findAll();
+
+    Imagen save(Imagen imagen);
+
     void delete(Long id);
 
-    // ==================== OPERACIONES CON ARCHIVOS Y BD ====================
+    // ==================== OPERACIONES CON ARCHIVOS ====================
 
     /**
      * Sube archivo Y crea registro en BD asociado a un artículo
@@ -34,35 +26,27 @@ public interface IImagenService {
     Imagen uploadAndCreateForArticulo(MultipartFile file, String denominacion, Long idArticulo);
 
     /**
-     * Actualiza imagen de un artículo (elimina la anterior y crea nueva)
+     * Crea registro en BD con URL existente (para uploads sin artículo asociado)
      */
-    Imagen updateImagenArticulo(Long idArticulo, MultipartFile newFile, String denominacion);
+    Imagen createFromExistingUrl(String denominacion, String url);
 
     /**
-     * Elimina imagen tanto del filesystem como de BD
+     * Crea registro en BD con URL existente y asociado a artículo
+     */
+    Imagen createFromExistingUrl(String denominacion, String url, Long idArticulo);
+
+    /**
+     * Elimina imagen completamente (archivo + registro BD)
      */
     void deleteCompletely(Long idImagen);
 
-    // ==================== BÚSQUEDAS Y CONSULTAS ====================
+    // ==================== BÚSQUEDAS ====================
 
     List<Imagen> findByArticulo(Long idArticulo);
-    List<Imagen> findImagenesHuerfanas();
+
     boolean existsByUrl(String url);
 
-    // ==================== OPERACIONES DE MANTENIMIENTO ====================
+    // ==================== VALIDACIÓN ====================
 
-    /**
-     * Limpia archivos huérfanos (archivos sin registro en BD)
-     */
-    void limpiarArchivosHuerfanos();
-
-    /**
-     * Limpia registros huérfanos (registros sin archivo)
-     */
-    void limpiarRegistrosHuerfanos();
-
-    /**
-     * Validación de archivo
-     */
     Map<String, Object> validateImageFile(MultipartFile file);
 }

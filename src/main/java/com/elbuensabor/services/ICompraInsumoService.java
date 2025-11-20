@@ -6,10 +6,13 @@ import com.elbuensabor.entities.CompraInsumo;
 
 import java.util.List;
 
-public interface CompraInsumoService {
-    void registrarCompra(CompraInsumoRequestDTO dto);
+public interface ICompraInsumoService {
+    CompraInsumoResponseDTO registrarCompra(CompraInsumoRequestDTO dto);
+
     List<CompraInsumo> getAllCompras();
+
     CompraInsumo getCompraById(Long id);
+
     List<CompraInsumo> getComprasByInsumoId(Long idInsumo);
 
     // 🔥 AGREGÁ ESTA LÍNEA 🔥

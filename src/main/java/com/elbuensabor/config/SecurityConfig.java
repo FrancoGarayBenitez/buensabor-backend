@@ -71,6 +71,10 @@ public class SecurityConfig {
 
                 // 3. Definir reglas de autorización de peticiones
                 .authorizeHttpRequests(auth -> auth
+                        // Recursos estáticos accesibles públicamente
+                        .requestMatchers("/img/**").permitAll()
+                        .requestMatchers("/static/**").permitAll()
+
                         // Endpoints de acceso PÚBLICO
                         .requestMatchers("/api/auth/**", "/public/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
 
@@ -92,6 +96,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/usuarios/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/empleados/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/estadisticas/**").hasAnyAuthority("ADMIN", "COCINERO", "DELIVERY")
+                        .requestMatchers("/api/articulos-insumo/**").hasAnyAuthority("ADMIN", "COCINERO")
 
                         // WebSocket endpoints
                         .requestMatchers("/ws/**").permitAll()

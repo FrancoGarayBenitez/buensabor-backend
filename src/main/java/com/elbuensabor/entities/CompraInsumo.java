@@ -18,9 +18,9 @@ public class CompraInsumo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "id_articulo_insumo")
-    private ArticuloInsumo insumo;
+    @ManyToOne(cascade = CascadeType.ALL)
+    @JoinColumn(name = "id_articulo_insumo", nullable = false)
+    private ArticuloInsumo articuloInsumo;
 
     private Double cantidad;
 

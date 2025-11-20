@@ -27,7 +27,7 @@ public class Articulo {
     private Double precioVenta;
 
     @Column(nullable = false)
-    private Boolean eliminado = false;  // <---- AGREGADO
+    private Boolean eliminado = false;
 
     @ManyToOne
     @JoinColumn(name = "id_unidad_medida")

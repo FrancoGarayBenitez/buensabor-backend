@@ -19,6 +19,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/imagenes")
+@CrossOrigin(origins = "*")
 public class ImageController {
 
     @Autowired
@@ -30,245 +31,200 @@ public class ImageController {
     @Value("${app.base.url:http://localhost:8080}")
     private String baseUrl;
 
-    // ==================== OPERACIONES INTEGRADAS (ARCHIVO + BD) ====================
+    // ==================== UPLOAD - GENÉRICO ====================
 
     /**
-     * Sube imagen y la asocia directamente a un artículo
+     * ✅ POST /api/imagenes/upload/{entityType}
+     * Sube imagen sin entidad asociada (ej: Cliente sin ID aún, Promoción sin ID)
      */
-    @PostMapping("/upload-for-articulo/{idArticulo}")
-    public ResponseEntity<?> uploadImageForArticulo(
-            @PathVariable Long idArticulo,
+    @PostMapping("/upload/{entityType}")
+    public ResponseEntity<?> uploadImage(
+            @PathVariable String entityType,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
-        try {
-            Imagen imagen = imagenService.uploadAndCreateForArticulo(file, denominacion, idArticulo);
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "idImagen", imagen.getIdImagen(),
-                    "denominacion", imagen.getDenominacion(),
-                    "url", imagen.getUrl(),
-                    "message", "Imagen subida y asociada correctamente"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al subir imagen: " + e.getMessage()));
-        }
+            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
+        return handleUpload(entityType, null, file, denominacion);
     }
 
     /**
-     * Actualiza la imagen de un artículo (elimina la anterior y sube nueva)
+     * ✅ POST /api/imagenes/upload/{entityType}/{entityId}
+     * Sube imagen y la asocia a una entidad (Insumo, Manufacturado)
      */
-    @PutMapping("/update-articulo/{idArticulo}")
-    public ResponseEntity<?> updateImagenArticulo(
-            @PathVariable Long idArticulo,
+    @PostMapping("/upload/{entityType}/{entityId}")
+    public ResponseEntity<?> uploadImageWithEntity(
+            @PathVariable String entityType,
+            @PathVariable Long entityId,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "denominacion", defaultValue = "Imagen del producto") String denominacion) {
+            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
+        return handleUpload(entityType, entityId, file, denominacion);
+    }
+
+    // ==================== UPDATE ====================
+
+    /**
+     * ✅ PUT /api/imagenes/{idImagen}
+     * Actualiza imagen: elimina anterior + sube nueva
+     */
+    @PutMapping("/{idImagen}")
+    public ResponseEntity<?> updateImagen(
+            @PathVariable Long idImagen,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
         try {
-            Imagen imagen = imagenService.updateImagenArticulo(idArticulo, file, denominacion);
+            Imagen imagenActual = imagenService.findById(idImagen);
+
+            // Eliminar archivo anterior
+            deletePhysicalFile(imagenActual.getUrl());
+
+            // Guardar nuevo archivo
+            String newUrl = savePhysicalFile(file);
+
+            // Actualizar registro
+            imagenActual.setUrl(newUrl);
+            imagenActual.setDenominacion(denominacion);
+            imagenService.save(imagenActual);
 
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "idImagen", imagen.getIdImagen(),
-                    "denominacion", imagen.getDenominacion(),
-                    "url", imagen.getUrl(),
-                    "message", "Imagen actualizada correctamente"
-            ));
+                    "idImagen", imagenActual.getIdImagen(),
+                    "denominacion", imagenActual.getDenominacion(),
+                    "url", imagenActual.getUrl()));
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al actualizar imagen: " + e.getMessage()));
+                    .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
 
+    // ==================== DELETE ====================
+
     /**
-     * Elimina imagen completamente (archivo + registro BD)
+     * ✅ DELETE /api/imagenes/{idImagen}
+     * Elimina imagen completamente (archivo + BD)
      */
     @DeleteMapping("/{idImagen}")
-    public ResponseEntity<?> deleteImagenCompletely(@PathVariable Long idImagen) {
+    public ResponseEntity<?> deleteImagen(@PathVariable Long idImagen) {
         try {
             imagenService.deleteCompletely(idImagen);
             return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "Imagen eliminada completamente"
-            ));
+                    "message", "Imagen eliminada correctamente"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al eliminar imagen: " + e.getMessage()));
+                    .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
 
-    // ==================== OPERACIONES SOLO DE ARCHIVOS (LEGACY) ====================
+    // ==================== GET ====================
 
     /**
-     * Sube archivo sin crear registro en BD (para casos especiales)
+     * ✅ GET /api/imagenes/{entityType}/{entityId}
+     * Obtiene todas las imágenes de una entidad
      */
-    @PostMapping("/upload")
-    public ResponseEntity<?> uploadImage(@RequestParam("file") MultipartFile file) {
+    @GetMapping("/{entityType}/{entityId}")
+    public ResponseEntity<?> getImagesByEntity(
+            @PathVariable String entityType,
+            @PathVariable Long entityId) {
         try {
-            // Validar archivo
-            Map<String, Object> validation = imagenService.validateImageFile(file);
-            if (!(Boolean) validation.get("valid")) {
-                return ResponseEntity.badRequest().body(Map.of("error", validation.get("error")));
-            }
-
-            // Generar nombre único para el archivo
-            String originalFilename = file.getOriginalFilename();
-            String fileExtension = getFileExtension(originalFilename);
-            String uniqueFilename = generateUniqueFilename(fileExtension);
-
-            // Crear directorio si no existe
-            Path uploadPath = Paths.get(uploadDir);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // Guardar archivo
-            Path filePath = uploadPath.resolve(uniqueFilename);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // Generar URL
-            String imageUrl = baseUrl + "/img/" + uniqueFilename;
-
-            // Crear respuesta con información de la imagen
-            Map<String, Object> response = Map.of(
-                    "success", true,
-                    "filename", uniqueFilename,
-                    "url", imageUrl,
-                    "originalName", originalFilename,
-                    "size", file.getSize(),
-                    "contentType", file.getContentType(),
-                    "warning", "Archivo subido sin registro en BD. Use /upload-for-articulo para asociar a artículo"
-            );
-
-            return ResponseEntity.ok(response);
-
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al guardar el archivo: " + e.getMessage()));
+            List<Imagen> imagenes = imagenService.findByArticulo(entityId);
+            return ResponseEntity.ok(imagenes);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "No se encontraron imágenes"));
         }
     }
 
     /**
-     * Elimina solo archivo físico (sin tocar BD)
-     */
-    @DeleteMapping("/delete/{filename}")
-    public ResponseEntity<?> deleteImageFile(@PathVariable String filename) {
-        try {
-            Path filePath = Paths.get(uploadDir).resolve(filename);
-
-            if (Files.exists(filePath)) {
-                Files.delete(filePath);
-                return ResponseEntity.ok(Map.of(
-                        "success", true,
-                        "message", "Archivo eliminado correctamente",
-                        "warning", "Solo se eliminó el archivo. Registro en BD no afectado"
-                ));
-            } else {
-                return ResponseEntity.notFound().build();
-            }
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al eliminar el archivo: " + e.getMessage()));
-        }
-    }
-
-    // ==================== CONSULTAS ====================
-
-    /**
-     * Obtener todas las imágenes de un artículo
-     */
-    @GetMapping("/articulo/{idArticulo}")
-    public ResponseEntity<List<Imagen>> getImagenesByArticulo(@PathVariable Long idArticulo) {
-        List<Imagen> imagenes = imagenService.findByArticulo(idArticulo);
-        return ResponseEntity.ok(imagenes);
-    }
-
-    /**
-     * Obtener imagen por ID
+     * ✅ GET /api/imagenes/{idImagen}
+     * Obtiene una imagen por ID
      */
     @GetMapping("/{idImagen}")
-    public ResponseEntity<Imagen> getImagenById(@PathVariable Long idImagen) {
-        Imagen imagen = imagenService.findById(idImagen);
-        return ResponseEntity.ok(imagen);
-    }
-
-    /**
-     * Validar si un archivo existe
-     */
-    @GetMapping("/validate/{filename}")
-    public ResponseEntity<?> validateImage(@PathVariable String filename) {
+    public ResponseEntity<?> getImagenById(@PathVariable Long idImagen) {
         try {
-            Path filePath = Paths.get(uploadDir).resolve(filename);
-
-            if (Files.exists(filePath)) {
-                String url = baseUrl + "/img/" + filename;
-                boolean existsInDB = imagenService.existsByUrl(url);
-
-                return ResponseEntity.ok(Map.of(
-                        "exists", true,
-                        "url", url,
-                        "filename", filename,
-                        "hasDBRecord", existsInDB
-                ));
-            } else {
-                return ResponseEntity.ok(Map.of("exists", false));
-            }
+            Imagen imagen = imagenService.findById(idImagen);
+            return ResponseEntity.ok(imagen);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al validar la imagen: " + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Imagen no encontrada"));
         }
-    }
-
-    // ==================== OPERACIONES DE MANTENIMIENTO ====================
-
-    /**
-     * Limpiar archivos huérfanos (archivos sin registro en BD)
-     */
-    @PostMapping("/maintenance/clean-orphan-files")
-    public ResponseEntity<?> cleanOrphanFiles() {
-        try {
-            imagenService.limpiarArchivosHuerfanos();
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Archivos huérfanos eliminados"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al limpiar archivos: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * Limpiar registros huérfanos (registros sin archivo)
-     */
-    @PostMapping("/maintenance/clean-orphan-records")
-    public ResponseEntity<?> cleanOrphanRecords() {
-        try {
-            imagenService.limpiarRegistrosHuerfanos();
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Registros huérfanos eliminados"
-            ));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", "Error al limpiar registros: " + e.getMessage()));
-        }
-    }
-
-    /**
-     * Obtener imágenes huérfanas
-     */
-    @GetMapping("/orphans")
-    public ResponseEntity<List<Imagen>> getOrphanImages() {
-        List<Imagen> orphans = imagenService.findImagenesHuerfanas();
-        return ResponseEntity.ok(orphans);
     }
 
     // ==================== MÉTODOS AUXILIARES ====================
 
+    private ResponseEntity<?> handleUpload(String entityType, Long entityId, MultipartFile file, String denominacion) {
+        try {
+            Map<String, Object> validation = imagenService.validateImageFile(file);
+            if (!(Boolean) validation.get("valid")) {
+                return ResponseEntity.badRequest().body(Map.of(
+                        "success", false,
+                        "error", validation.get("error")));
+            }
+
+            Imagen imagen;
+
+            if (entityId != null && isArticuloType(entityType)) {
+                // Sube y asocia a artículo
+                imagen = imagenService.uploadAndCreateForArticulo(file, denominacion, entityId);
+            } else {
+                // Solo sube archivo
+                String url = savePhysicalFile(file);
+                imagen = imagenService.createFromExistingUrl(denominacion, url);
+            }
+
+            return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "idImagen", imagen.getIdImagen(),
+                    "denominacion", imagen.getDenominacion(),
+                    "url", imagen.getUrl()));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "error", e.getMessage()));
+        }
+    }
+
+    private boolean isArticuloType(String entityType) {
+        return entityType.equalsIgnoreCase("INSUMO") ||
+                entityType.equalsIgnoreCase("MANUFACTURADO");
+    }
+
+    private String savePhysicalFile(MultipartFile file) throws IOException {
+        String fileExtension = getFileExtension(file.getOriginalFilename());
+        String uniqueFilename = generateUniqueFilename(fileExtension);
+
+        Path uploadPath = Paths.get(uploadDir);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        Path filePath = uploadPath.resolve(uniqueFilename);
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+
+        return baseUrl + "/img/" + uniqueFilename;
+    }
+
+    private boolean deletePhysicalFile(String imageUrl) {
+        try {
+            String filename = extractFilenameFromUrl(imageUrl);
+            Path filePath = Paths.get(uploadDir, filename);
+
+            if (Files.exists(filePath)) {
+                Files.delete(filePath);
+                return !Files.exists(filePath);
+            }
+            return true;
+        } catch (IOException e) {
+            System.err.println("Error eliminando archivo: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private String extractFilenameFromUrl(String url) {
+        return url.substring(url.lastIndexOf('/') + 1);
+    }
+
     private String getFileExtension(String filename) {
         if (filename == null || filename.lastIndexOf('.') == -1) {
-            return ".jpg"; // Default extension
+            return ".jpg";
         }
         return filename.substring(filename.lastIndexOf('.'));
     }

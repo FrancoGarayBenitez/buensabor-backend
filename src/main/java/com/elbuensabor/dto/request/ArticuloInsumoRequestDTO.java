@@ -15,7 +15,7 @@ public class ArticuloInsumoRequestDTO {
     private String denominacion;
 
     @NotNull(message = "El precio de venta es obligatorio")
-    @DecimalMin(value = "0.0", inclusive = false, message = "El precio de venta debe ser mayor a 0")
+    @DecimalMin(value = "0.0", inclusive = true, message = "El precio de venta debe ser mayor o igual a 0")
     private Double precioVenta;
 
     @NotNull(message = "La unidad de medida es obligatoria")
@@ -26,7 +26,7 @@ public class ArticuloInsumoRequestDTO {
 
     // Campos específicos de ArticuloInsumo
     @NotNull(message = "El precio de compra es obligatorio")
-    @DecimalMin(value = "0.0", inclusive = false, message = "El precio de compra debe ser mayor a 0")
+    @DecimalMin(value = "0.0", inclusive = true, message = "El precio de compra debe ser mayor o igual a 0")
     private Double precioCompra;
 
     @NotNull(message = "El stock actual es obligatorio")

@@ -8,6 +8,6 @@ import java.util.List;
 
 @Repository
 public interface ICompraInsumoRepository extends JpaRepository<CompraInsumo, Long> {
-    List<CompraInsumo> findByInsumo_IdArticulo(Long idInsumo);
+    List<CompraInsumo> findByArticuloInsumo_IdArticulo(Long idArticuloInsumo);
 
 }

@@ -71,7 +71,9 @@ public class PedidoServiceImpl implements IPedidoService {
 
         return response;
     }
-    // ==================== MÉTODO AUXILIAR PARA BUSCAR ARTÍCULOS ====================
+
+    // ==================== MÉTODO AUXILIAR PARA BUSCAR ARTÍCULOS
+    // ====================
     private Articulo buscarArticuloPorId(Long idArticulo) {
         // Primero intentar buscar en manufacturados
         Optional<Articulo> manufacturado = articuloRepository.findById(idArticulo);
@@ -130,7 +132,6 @@ public class PedidoServiceImpl implements IPedidoService {
         pedido.setObservaciones(pedidoRequest.getObservaciones());
         System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
 
-
         // 4. Asignar domicilio según tipo de envío
 
         if (pedidoRequest.getTipoEnvio().equals("DELIVERY")) {
@@ -149,10 +150,12 @@ public class PedidoServiceImpl implements IPedidoService {
                 }
             } else {
                 // Si no se especifica, buscar el primer domicilio del cliente
-                List<Domicilio> domiciliosCliente = domicilioRepository.findByClienteIdOrderByPrincipal(pedidoRequest.getIdCliente());
+                List<Domicilio> domiciliosCliente = domicilioRepository
+                        .findByClienteIdOrderByPrincipal(pedidoRequest.getIdCliente());
 
                 if (domiciliosCliente.isEmpty()) {
-                    throw new IllegalArgumentException("El cliente no tiene domicilios registrados para delivery. Debe registrar una dirección primero.");
+                    throw new IllegalArgumentException(
+                            "El cliente no tiene domicilios registrados para delivery. Debe registrar una dirección primero.");
                 }
 
                 // Usar el primer domicilio del cliente
@@ -173,7 +176,8 @@ public class PedidoServiceImpl implements IPedidoService {
                         sucursal.getDomicilio().getIdDomicilio(),
                         sucursal.getDomicilio().getCalle() + " " + sucursal.getDomicilio().getNumero());
             } else {
-                logger.error("❌ ERROR: Sucursal ID: {} no tiene domicilio configurado", sucursal.getIdSucursalEmpresa());
+                logger.error("❌ ERROR: Sucursal ID: {} no tiene domicilio configurado",
+                        sucursal.getIdSucursalEmpresa());
                 throw new IllegalStateException("La sucursal debe tener un domicilio configurado");
             }
         }
@@ -204,15 +208,14 @@ public class PedidoServiceImpl implements IPedidoService {
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
         System.out.println("💾 Observaciones asignadas a entidad: '" + pedido.getObservaciones() + "'");
 
-
         // 8. Aplicar promociones antes de crear detalles del pedido
         System.out.println("🎯 Aplicando promociones al pedido...");
-        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
-                promocionPedidoService.aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas = promocionPedidoService
+                .aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
 
         System.out.println("💰 Promociones procesadas: " + promocionesAplicadas.getResumenPromociones());
 
-// 9. Crear detalles del pedido CON PROMOCIONES
+        // 9. Crear detalles del pedido CON PROMOCIONES
         List<DetallePedido> detalles = promocionesAplicadas.getDetallesConPromociones().stream()
                 .map(detalleConPromocion -> {
                     Articulo articulo = buscarArticuloPorId(detalleConPromocion.getIdArticulo());
@@ -234,8 +237,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
                         try {
                             Promocion promocion = promocionRepository.findById(
-                                    detalleConPromocion.getPromocionAplicada().getIdPromocion()
-                            ).orElse(null);
+                                    detalleConPromocion.getPromocionAplicada().getIdPromocion()).orElse(null);
                             detalle.setPromocionAplicada(promocion);
                         } catch (Exception e) {
                             logger.warn("⚠️ Error asignando promoción: {}", e.getMessage());
@@ -245,8 +247,9 @@ public class PedidoServiceImpl implements IPedidoService {
                     System.out.println("📦 Detalle creado: " + articulo.getDenominacion() +
                             " x " + detalleConPromocion.getCantidad() +
                             " = $" + detalle.getSubtotal() +
-                            (detalleConPromocion.getTienePromocion() ?
-                                    " (con promoción: -$" + detalleConPromocion.getDescuentoAplicado() + ")" : ""));
+                            (detalleConPromocion.getTienePromocion()
+                                    ? " (con promoción: -$" + detalleConPromocion.getDescuentoAplicado() + ")"
+                                    : ""));
 
                     return detalle;
                 })
@@ -280,8 +283,8 @@ public class PedidoServiceImpl implements IPedidoService {
         // Notificar creación de pedido via WebSocket
         webSocketNotificationService.notificarNuevoPedido(
                 pedidoFinal.getIdPedido(),
-                pedidoFinal.getCliente().getUsuario().getNombre() + " " + pedidoFinal.getCliente().getUsuario().getApellido()
-        );
+                pedidoFinal.getCliente().getUsuario().getNombre() + " "
+                        + pedidoFinal.getCliente().getUsuario().getApellido());
 
         return response;
     }
@@ -358,8 +361,7 @@ public class PedidoServiceImpl implements IPedidoService {
         webSocketNotificationService.notificarCambioEstado(
                 id,
                 "EN_PREPARACION",
-                clienteEmail
-        );
+                clienteEmail);
 
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
@@ -398,15 +400,13 @@ public class PedidoServiceImpl implements IPedidoService {
         webSocketNotificationService.notificarCambioEstado(
                 id,
                 "LISTO",
-                clienteEmail
-        );
+                clienteEmail);
 
         // ✅ NUEVO: Si es delivery, notificar específicamente a delivery
         if (pedidoActualizado.getTipoEnvio() == TipoEnvio.DELIVERY) {
             webSocketNotificationService.notificarPedidoListoParaDelivery(
                     id,
-                    clienteNombre
-            );
+                    clienteNombre);
         }
 
         return enrichPedidoResponseConPromociones(pedidoActualizado);
@@ -431,8 +431,7 @@ public class PedidoServiceImpl implements IPedidoService {
         webSocketNotificationService.notificarCambioEstado(
                 id,
                 "ENTREGADO",
-                pedidoActualizado.getCliente().getUsuario().getEmail()
-        );
+                pedidoActualizado.getCliente().getUsuario().getEmail());
 
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
@@ -476,8 +475,7 @@ public class PedidoServiceImpl implements IPedidoService {
         webSocketNotificationService.notificarCancelacionPedido(
                 id,
                 clienteNombre,
-                clienteAuthId
-        );
+                clienteAuthId);
 
         return enrichPedidoResponseConPromociones(pedidoActualizado);
     }
@@ -524,8 +522,8 @@ public class PedidoServiceImpl implements IPedidoService {
         System.out.println("💰 Calculando total CON promociones...");
 
         // Aplicar promociones y obtener subtotal con descuentos
-        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
-                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas = promocionPedidoService
+                .aplicarPromocionesAPedido(pedidoRequest);
 
         double subtotal = promocionesAplicadas.getSubtotalFinal(); // Ya incluye descuentos
 
@@ -541,7 +539,9 @@ public class PedidoServiceImpl implements IPedidoService {
         System.out.println("💰 Total final calculado: $" + subtotal);
         return subtotal;
     }
-    // ==================== MÉTODO CALCULAR TIEMPO ESTIMADO CORREGIDO ====================
+
+    // ==================== MÉTODO CALCULAR TIEMPO ESTIMADO CORREGIDO
+    // ====================
     @Override
     @Transactional(readOnly = true)
     public Integer calcularTiempoEstimado(PedidoRequestDTO pedidoRequest) {
@@ -634,6 +634,7 @@ public class PedidoServiceImpl implements IPedidoService {
 
         return totalCosto;
     }
+
     private void actualizarStockIngredientes(PedidoRequestDTO pedidoRequest) {
         for (var detalle : pedidoRequest.getDetalles()) {
             Articulo articulo = buscarArticuloPorId(detalle.getIdArticulo()); // ← Cambiar esta línea
@@ -644,7 +645,7 @@ public class PedidoServiceImpl implements IPedidoService {
                 for (var ingrediente : manufacturado.getDetalles()) {
                     ArticuloInsumo insumo = ingrediente.getArticuloInsumo();
                     int cantidadARestar = (int) (ingrediente.getCantidad() * detalle.getCantidad());
-                    int stockAnterior = insumo.getStockActual();
+                    Double stockAnterior = insumo.getStockActual();
                     insumo.setStockActual(insumo.getStockActual() - cantidadARestar);
                     articuloInsumoRepository.save(insumo);
 
@@ -653,7 +654,7 @@ public class PedidoServiceImpl implements IPedidoService {
                 }
             } else if (articulo instanceof ArticuloInsumo) {
                 ArticuloInsumo insumo = (ArticuloInsumo) articulo;
-                int stockAnterior = insumo.getStockActual();
+                Double stockAnterior = insumo.getStockActual();
                 insumo.setStockActual(insumo.getStockActual() - detalle.getCantidad());
                 articuloInsumoRepository.save(insumo);
 
@@ -662,6 +663,7 @@ public class PedidoServiceImpl implements IPedidoService {
             }
         }
     }
+
     private void actualizarStockDesdePedido(Pedido pedido) {
         for (var detalle : pedido.getDetalles()) {
             Articulo articulo = detalle.getArticulo();
@@ -789,8 +791,8 @@ public class PedidoServiceImpl implements IPedidoService {
         }
 
         // Aplicar otras promociones individuales (usar servicio existente)
-        PromocionPedidoService.PromocionesAplicadasDTO promocionesIndividuales =
-                promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesIndividuales = promocionPedidoService
+                .aplicarPromocionesAPedido(pedidoRequest);
 
         double descuentoIndividual = promocionesIndividuales.getDescuentoTotal();
         System.out.println("🎯 Descuento promociones individuales: $" + descuentoIndividual);
@@ -807,6 +809,7 @@ public class PedidoServiceImpl implements IPedidoService {
         System.out.println("💰 Total final con promoción agrupada: $" + subtotalConDescuentos);
         return Math.max(0, subtotalConDescuentos); // No puede ser negativo
     }
+
     /**
      * ✅ MÉTODO CORREGIDO: Calcula el total CON descuento TAKE_AWAY
      * APLICA LA MISMA LÓGICA QUE EL FRONTEND
@@ -824,8 +827,8 @@ public class PedidoServiceImpl implements IPedidoService {
         System.out.println("💰 Subtotal original: $" + subtotalOriginal);
 
         // 2. Usar el servicio de promociones para obtener cálculo COMPLETO
-        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
-                promocionPedidoService.aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
+        PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas = promocionPedidoService
+                .aplicarPromocionesAPedidoConAgrupada(pedidoRequest);
 
         double descuentoPromociones = promocionesAplicadas.getDescuentoTotal();
         System.out.println("🎯 Descuento promociones (completo): $" + descuentoPromociones);
@@ -837,19 +840,22 @@ public class PedidoServiceImpl implements IPedidoService {
         // 4. Verificar que coincida con nuestro cálculo manual
         double verificacion = subtotalOriginal - descuentoPromociones;
         if (Math.abs(subtotalConPromociones - verificacion) > 0.01) {
-            System.out.println("⚠️ ADVERTENCIA: Diferencia en cálculo - Servicio: $" + subtotalConPromociones + " vs Manual: $" + verificacion);
+            System.out.println("⚠️ ADVERTENCIA: Diferencia en cálculo - Servicio: $" + subtotalConPromociones
+                    + " vs Manual: $" + verificacion);
         }
         System.out.println("💰 Subtotal CON promociones: $" + subtotalConPromociones);
 
         // 5. ✅ CORREGIDO: Aplicar descuento TAKE_AWAY sobre subtotal CON promociones
         double porcentajeDescuento = 10.0;
         double descuentoTakeAway = subtotalConPromociones * (porcentajeDescuento / 100);
-        System.out.println("🏪 Descuento TAKE_AWAY (" + porcentajeDescuento + "% de $" + subtotalConPromociones + "): $" + descuentoTakeAway);
+        System.out.println("🏪 Descuento TAKE_AWAY (" + porcentajeDescuento + "% de $" + subtotalConPromociones + "): $"
+                + descuentoTakeAway);
 
         // 6. Calcular total final
         double totalFinal = subtotalConPromociones - descuentoTakeAway;
 
-        // 7. Agregar gastos de envío si es DELIVERY (normalmente no aplica para TAKE_AWAY)
+        // 7. Agregar gastos de envío si es DELIVERY (normalmente no aplica para
+        // TAKE_AWAY)
         if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
             totalFinal += 200;
             System.out.println("🚚 Gastos envío DELIVERY: $200");

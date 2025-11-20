@@ -3,17 +3,23 @@ package com.elbuensabor.services.impl;
 import com.elbuensabor.dto.request.ArticuloInsumoRequestDTO;
 import com.elbuensabor.dto.request.ImagenDTO;
 import com.elbuensabor.dto.response.ArticuloInsumoResponseDTO;
+import com.elbuensabor.entities.Articulo;
 import com.elbuensabor.entities.ArticuloInsumo;
 import com.elbuensabor.entities.Categoria;
+import com.elbuensabor.entities.HistoricoPrecio;
 import com.elbuensabor.entities.Imagen;
 import com.elbuensabor.entities.UnidadMedida;
 import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IArticuloInsumoRepository;
 import com.elbuensabor.repository.ICategoriaRepository;
+import com.elbuensabor.repository.IHistoricoPrecioRepository;
 import com.elbuensabor.repository.IUnidadMedidaRepository;
 import com.elbuensabor.services.IArticuloInsumoService;
 import com.elbuensabor.services.mapper.ArticuloInsumoMapper;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,14 +29,20 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo, Long, ArticuloInsumoResponseDTO, IArticuloInsumoRepository, ArticuloInsumoMapper>
+public class ArticuloInsumoServiceImpl extends
+        GenericServiceImpl<ArticuloInsumo, Long, ArticuloInsumoResponseDTO, IArticuloInsumoRepository, ArticuloInsumoMapper>
         implements IArticuloInsumoService {
+
+    private static final Logger logger = LoggerFactory.getLogger(ArticuloInsumoServiceImpl.class);
 
     @Autowired
     private ICategoriaRepository categoriaRepository;
 
     @Autowired
     private IUnidadMedidaRepository unidadMedidaRepository;
+
+    @Autowired
+    private IHistoricoPrecioRepository historicoPrecioRepository;
 
     @Autowired
     public ArticuloInsumoServiceImpl(IArticuloInsumoRepository repository, ArticuloInsumoMapper mapper) {
@@ -55,6 +67,25 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         return mapearInsumoCompleto(insumo);
     }
 
+    @Override
+    @Transactional
+    public void deleteById(Long id) {
+        Articulo articulo = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+
+        // ✅ Validar si tiene compras (históricos de precio)
+        List<HistoricoPrecio> historicos = historicoPrecioRepository.findByArticuloOrderByFechaDesc(id);
+
+        if (!historicos.isEmpty()) {
+            System.out.println("⚠️ ADVERTENCIA: Se eliminará '" + articulo.getDenominacion() +
+                    "' con " + historicos.size() + " compra(s) asociada(s)");
+        }
+
+        repository.deleteById(id);
+
+        System.out.println("✅ Insumo eliminado: " + articulo.getDenominacion());
+    }
+
     // ==================== MÉTODOS ESPECÍFICOS ====================
 
     @Override
@@ -62,7 +93,8 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
     public ArticuloInsumoResponseDTO createInsumo(ArticuloInsumoRequestDTO insumoRequestDTO) {
         // Validar que no exista un insumo con el mismo nombre
         if (repository.existsByDenominacion(insumoRequestDTO.getDenominacion())) {
-            throw new DuplicateResourceException("Ya existe un artículo con la denominación: " + insumoRequestDTO.getDenominacion());
+            throw new DuplicateResourceException(
+                    "Ya existe un artículo con la denominación: " + insumoRequestDTO.getDenominacion());
         }
 
         // Validar stock máximo >= stock actual
@@ -76,34 +108,33 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         // Asignar relaciones
         asignarRelaciones(insumo, insumoRequestDTO);
 
-        // ==================== MANEJO DE IMAGEN - NUEVO ====================
-        // Inicializar la lista de imágenes
-        insumo.setImagenes(new ArrayList<>());
-
-        // Solo agregar imagen si NO es para elaborar (es para venta)
-        if (!insumoRequestDTO.getEsParaElaborar() && insumoRequestDTO.getImagen() != null) {
+        // Imagen
+        if (insumoRequestDTO.getImagen() != null) {
             Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
-            // CLAVE: Establecer la relación bidireccional
             imagen.setArticulo(insumo);
             insumo.getImagenes().add(imagen);
+            logger.info("✅ Imagen agregada al insumo: {}", insumoRequestDTO.getImagen().getDenominacion());
         }
-        // ================================================================
-
 
         ArticuloInsumo savedInsumo = repository.save(insumo);
+        logger.info("✅ Insumo creado exitosamente: {} (ID: {})",
+                savedInsumo.getDenominacion(), savedInsumo.getIdArticulo());
         return mapearInsumoCompleto(savedInsumo);
     }
 
     @Override
     @Transactional
     public ArticuloInsumoResponseDTO updateInsumo(Long id, ArticuloInsumoRequestDTO insumoRequestDTO) {
+        logger.info("📝 Actualizando insumo ID: {}", id);
+
         ArticuloInsumo existingInsumo = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
 
         // Validar nombre duplicado (excluyendo el actual)
         if (repository.existsByDenominacion(insumoRequestDTO.getDenominacion()) &&
                 !existingInsumo.getDenominacion().equals(insumoRequestDTO.getDenominacion())) {
-            throw new DuplicateResourceException("Ya existe otro artículo con la denominación: " + insumoRequestDTO.getDenominacion());
+            throw new DuplicateResourceException(
+                    "Ya existe otro artículo con la denominación: " + insumoRequestDTO.getDenominacion());
         }
 
         // Validar stock máximo >= stock actual
@@ -117,7 +148,6 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
         // Actualizar relaciones
         asignarRelaciones(existingInsumo, insumoRequestDTO);
 
-        // ==================== MANEJO DE IMAGEN - NUEVO ====================
         // Limpiar imágenes existentes
         if (existingInsumo.getImagenes() != null) {
             existingInsumo.getImagenes().clear();
@@ -125,17 +155,17 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
             existingInsumo.setImagenes(new ArrayList<>());
         }
 
-        // Solo agregar imagen si NO es para elaborar (es para venta)
-        if (!insumoRequestDTO.getEsParaElaborar() && insumoRequestDTO.getImagen() != null) {
-
+        // Manejo de imagen
+        if (insumoRequestDTO.getImagen() != null) {
             Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
-            // CLAVE: Establecer la relación bidireccional
             imagen.setArticulo(existingInsumo);
             existingInsumo.getImagenes().add(imagen);
+            logger.info("✅ Imagen actualizada para insumo: {}", insumoRequestDTO.getImagen().getDenominacion());
         }
-        // ================================================================
 
         ArticuloInsumo updatedInsumo = repository.save(existingInsumo);
+        logger.info("✅ Insumo actualizado: {}", updatedInsumo.getDenominacion());
+
         return mapearInsumoCompleto(updatedInsumo);
     }
 
@@ -147,6 +177,7 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
                 .map(this::mapearInsumoCompleto)
                 .collect(Collectors.toList());
     }
+
     @Override
     @Transactional(readOnly = true)
     public List<ArticuloInsumoResponseDTO> findByUnidadMedida(Long idUnidadMedida) {
@@ -155,6 +186,7 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
                 .map(this::mapearInsumoCompleto)
                 .collect(Collectors.toList());
     }
+
     @Override
     @Transactional(readOnly = true)
     public List<ArticuloInsumoResponseDTO> findIngredientes() {
@@ -210,57 +242,6 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
     }
 
     @Override
-    @Transactional
-    public ArticuloInsumoResponseDTO actualizarStock(Long id, Integer nuevoStock) {
-        ArticuloInsumo insumo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
-
-        if (nuevoStock < 0) {
-            throw new IllegalArgumentException("El stock no puede ser negativo");
-        }
-
-        if (nuevoStock > insumo.getStockMaximo()) {
-            throw new IllegalArgumentException("el stock no puede superar el stock máximo (" + insumo.getStockMaximo() + ")");
-        }
-
-        insumo.setStockActual(nuevoStock);
-        ArticuloInsumo updatedInsumo = repository.save(insumo);
-        return mapearInsumoCompleto(updatedInsumo);
-    }
-
-    @Override
-    @Transactional
-    public ArticuloInsumoResponseDTO incrementarStock(Long id, Integer cantidad) {
-        ArticuloInsumo insumo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
-
-        Integer nuevoStock = insumo.getStockActual() + cantidad;
-        if (nuevoStock > insumo.getStockMaximo()) {
-            throw new IllegalArgumentException("El incremento supera el stock máximo permitido");
-        }
-
-        insumo.setStockActual(nuevoStock);
-        ArticuloInsumo updatedInsumo = repository.save(insumo);
-        return mapearInsumoCompleto(updatedInsumo);
-    }
-
-    @Override
-    @Transactional
-    public ArticuloInsumoResponseDTO decrementarStock(Long id, Integer cantidad) {
-        ArticuloInsumo insumo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
-
-        Integer nuevoStock = insumo.getStockActual() - cantidad;
-        if (nuevoStock < 0) {
-            throw new IllegalArgumentException("No hay suficiente stock disponible");
-        }
-
-        insumo.setStockActual(nuevoStock);
-        ArticuloInsumo updatedInsumo = repository.save(insumo);
-        return mapearInsumoCompleto(updatedInsumo);
-    }
-
-    @Override
     @Transactional(readOnly = true)
     public boolean existsByDenominacion(String denominacion) {
         return repository.existsByDenominacion(denominacion);
@@ -283,9 +264,11 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
     @Transactional(readOnly = true)
     public Double calcularPorcentajeStock(Long idInsumo) {
         ArticuloInsumo insumo = repository.findById(idInsumo)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + idInsumo + " no encontrado"));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException("Artículo insumo con ID " + idInsumo + " no encontrado"));
 
-        if (insumo.getStockMaximo() == 0) return 0.0;
+        if (insumo.getStockMaximo() == 0)
+            return 0.0;
         return (insumo.getStockActual() * 100.0) / insumo.getStockMaximo();
     }
 
@@ -294,9 +277,12 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
     public String determinarEstadoStock(Long idInsumo) {
         Double porcentaje = calcularPorcentajeStock(idInsumo);
 
-        if (porcentaje <= 25) return "CRITICO";
-        if (porcentaje <= 50) return "BAJO";
-        if (porcentaje <= 75) return "NORMAL";
+        if (porcentaje <= 25)
+            return "CRITICO";
+        if (porcentaje <= 50)
+            return "BAJO";
+        if (porcentaje <= 75)
+            return "NORMAL";
         return "ALTO";
     }
 
@@ -324,13 +310,15 @@ public class ArticuloInsumoServiceImpl extends GenericServiceImpl<ArticuloInsumo
     private void asignarRelaciones(ArticuloInsumo insumo, ArticuloInsumoRequestDTO dto) {
         // Asignar unidad de medida (DEBE existir previamente)
         UnidadMedida unidadMedida = unidadMedidaRepository.findById(dto.getIdUnidadMedida())
-                .orElseThrow(() -> new ResourceNotFoundException("Unidad de medida con ID " + dto.getIdUnidadMedida() + " no encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Unidad de medida con ID " + dto.getIdUnidadMedida() + " no encontrada"));
         insumo.setUnidadMedida(unidadMedida);
         unidadMedida.getArticulos().add(insumo);
 
         // Asignar categoría (DEBE existir previamente)
         Categoria categoria = categoriaRepository.findById(dto.getIdCategoria())
-                .orElseThrow(() -> new ResourceNotFoundException("Categoría con ID " + dto.getIdCategoria() + " no encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Categoría con ID " + dto.getIdCategoria() + " no encontrada"));
         insumo.setCategoria(categoria);
     }
 
