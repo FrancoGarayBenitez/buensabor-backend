@@ -16,7 +16,7 @@ import java.util.List;
 public class Categoria {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name="id_categoria")
+    @Column(name = "id_categoria")
     private Long idCategoria;
 
     @Column(nullable = false)
@@ -25,18 +25,22 @@ public class Categoria {
     @Column(nullable = false)
     private boolean esSubcategoria;
 
-    @OneToMany(mappedBy = "categoria")
+    @OneToMany(mappedBy = "categoria", fetch = FetchType.LAZY)
     private List<Articulo> articulos = new ArrayList<>();
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_categoria", nullable = false, length = 20)
+    private TipoCategoria tipoCategoria;
+
     // Autorrelación: padre
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_categoria_padre")
     private Categoria categoriaPadre;
 
     // Autorrelación: hijos
-    @OneToMany(mappedBy = "categoriaPadre")
+    @OneToMany(mappedBy = "categoriaPadre", fetch = FetchType.LAZY)
     private List<Categoria> subcategorias = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "categorias")
+    @ManyToMany(mappedBy = "categorias", fetch = FetchType.LAZY)
     private List<SucursalEmpresa> sucursales = new ArrayList<>();
 }

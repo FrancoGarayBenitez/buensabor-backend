@@ -25,35 +25,43 @@ public interface PromocionMapper extends BaseMapper<Promocion, PromocionResponse
     PromocionResponseDTO toDTO(Promocion entity);
 
     // ==================== REQUEST DTO → ENTITY ====================
-    @Mapping(target = "idPromocion", ignore = true)
-    @Mapping(target = "articulos", ignore = true) // Se asigna en el service
-    @Mapping(target = "imagenes", ignore = true)
-    @Mapping(target = "sucursales", ignore = true) // Se asigna en el service
-    // ✅ FIX: Mapear precioPromocional en lugar de ignorarlo
-    @Mapping(source = "precioPromocional", target = "precioPromocional")
+    @Mapping(target = "idPromocion", ignore = true) // ✅ Se autogenera
+    @Mapping(target = "articulos", ignore = true) // ✅ Se asigna en el service
+    @Mapping(target = "imagenes", ignore = true) // ✅ Se maneja en ImageService
+    @Mapping(target = "sucursales", ignore = true) // ✅ Se asigna en el service
+    @Mapping(target = "activo", constant = "true") // ✅ Siempre true en creación
     Promocion toEntity(PromocionRequestDTO dto);
 
-    // ==================== UPDATE FROM DTO ====================
+    // ==================== UPDATE FROM REQUEST DTO ====================
     @Mapping(target = "idPromocion", ignore = true)
-    @Mapping(target = "articulos", ignore = true) // Se maneja en el service
-    @Mapping(target = "imagenes", ignore = true)
-    @Mapping(target = "sucursales", ignore = true)
-    // ✅ FIX: También mapear en updates
-    @Mapping(source = "precioPromocional", target = "precioPromocional")
+    @Mapping(target = "articulos", ignore = true) // ✅ Se maneja en el service
+    @Mapping(target = "imagenes", ignore = true) // ✅ Se maneja por separado
+    @Mapping(target = "sucursales", ignore = true) // ✅ Se maneja en el service
     void updateEntityFromDTO(PromocionRequestDTO dto, @MappingTarget Promocion entity);
 
     // ==================== RESPONSE DTO → ENTITY ====================
     @Override
+    @Mapping(target = "idPromocion", ignore = true)
     @Mapping(target = "articulos", ignore = true)
     @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "sucursales", ignore = true)
     Promocion toEntity(PromocionResponseDTO dto);
 
+    // ==================== UPDATE FROM RESPONSE DTO (GENERIC) ====================
+    @Override
+    @Mapping(target = "idPromocion", ignore = true)
+    @Mapping(target = "articulos", ignore = true)
+    @Mapping(target = "imagenes", ignore = true)
+    @Mapping(target = "sucursales", ignore = true)
+    void updateEntityFromDTO(PromocionResponseDTO dto, @MappingTarget Promocion entity);
+
     // ==================== MÉTODOS AUXILIARES ====================
 
     @Named("mapArticulosToSimpleDTO")
-    default List<PromocionResponseDTO.ArticuloSimpleDTO> mapArticulosToSimpleDTO(List<com.elbuensabor.entities.Articulo> articulos) {
-        if (articulos == null) return null;
+    default List<PromocionResponseDTO.ArticuloSimpleDTO> mapArticulosToSimpleDTO(
+            List<com.elbuensabor.entities.Articulo> articulos) {
+        if (articulos == null || articulos.isEmpty())
+            return List.of();
 
         return articulos.stream()
                 .map(articulo -> {
@@ -74,7 +82,8 @@ public interface PromocionMapper extends BaseMapper<Promocion, PromocionResponse
 
     @Named("mapImagenesToUrls")
     default List<String> mapImagenesToUrls(List<com.elbuensabor.entities.Imagen> imagenes) {
-        if (imagenes == null) return null;
+        if (imagenes == null || imagenes.isEmpty())
+            return List.of();
 
         return imagenes.stream()
                 .map(com.elbuensabor.entities.Imagen::getUrl)

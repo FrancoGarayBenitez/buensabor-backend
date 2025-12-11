@@ -18,7 +18,7 @@ public class CompraInsumo {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne
     @JoinColumn(name = "id_articulo_insumo", nullable = false)
     private ArticuloInsumo articuloInsumo;
 
@@ -27,4 +27,7 @@ public class CompraInsumo {
     private Double precioUnitario;
 
     private LocalDate fechaCompra = LocalDate.now();
+
+    @OneToOne(mappedBy = "compra", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private HistoricoPrecio historicoPrecio;
 }

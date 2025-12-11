@@ -4,11 +4,13 @@ import com.elbuensabor.dto.request.CompraInsumoRequestDTO;
 import com.elbuensabor.dto.response.CompraInsumoResponseDTO;
 import com.elbuensabor.entities.ArticuloInsumo;
 import com.elbuensabor.entities.CompraInsumo;
+import com.elbuensabor.entities.EstadoStock;
+import com.elbuensabor.entities.HistoricoPrecio;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IArticuloInsumoRepository;
 import com.elbuensabor.repository.ICompraInsumoRepository;
+import com.elbuensabor.repository.IHistoricoPrecioRepository;
 import com.elbuensabor.services.ICompraInsumoService;
-import com.elbuensabor.services.IHistoricoPrecioService;
 
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -27,26 +29,35 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
 
     private final ICompraInsumoRepository compraInsumoRepository;
     private final IArticuloInsumoRepository articuloInsumoRepository;
-    private final IHistoricoPrecioService historicoPrecioService;
+    private final IHistoricoPrecioRepository historicoPrecioRepository;
 
     /**
-     * Registrar compra con todas las validaciones y actualizaciones
+     * ✅ Registrar compra Y calcular estado
      */
     @Override
     @Transactional
     public CompraInsumoResponseDTO registrarCompra(CompraInsumoRequestDTO dto) {
         logger.info("📦 Registrando compra para insumo {}: {} unidades a ${}",
-                dto.getInsumoId(), dto.getCantidad(), dto.getPrecioUnitario());
+                dto.getIdArticuloInsumo(), dto.getCantidad(), dto.getPrecioUnitario());
+
+        // ✅ VALIDACIONES PREVIAS
+        if (dto.getCantidad() == null || dto.getCantidad() <= 0) {
+            throw new IllegalArgumentException("La cantidad debe ser mayor a 0");
+        }
+
+        if (dto.getPrecioUnitario() == null || dto.getPrecioUnitario() <= 0) {
+            throw new IllegalArgumentException("El precio unitario debe ser mayor a 0");
+        }
 
         // 1. Validar que el insumo existe
-        ArticuloInsumo insumo = articuloInsumoRepository.findById(dto.getInsumoId())
+        ArticuloInsumo insumo = articuloInsumoRepository.findById(dto.getIdArticuloInsumo())
                 .orElseThrow(() -> {
-                    logger.error("❌ Insumo no encontrado: {}", dto.getInsumoId());
+                    logger.error("❌ Insumo no encontrado: {}", dto.getIdArticuloInsumo());
                     return new ResourceNotFoundException(
-                            "Insumo no encontrado con ID: " + dto.getInsumoId());
+                            "Insumo no encontrado con ID: " + dto.getIdArticuloInsumo());
                 });
 
-        // 2. Guardar compra original
+        // 2. Guardar compra
         CompraInsumo compra = new CompraInsumo();
         compra.setArticuloInsumo(insumo);
         compra.setCantidad(dto.getCantidad());
@@ -57,29 +68,28 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
         logger.info("✅ Compra guardada con ID: {}", compraGuardada.getId());
 
         // 3. Actualizar precio promedio (ponderado)
-        Double nuevoPromedio = calcularPrecioPromedio(insumo, dto.getPrecioUnitario());
+        Double nuevoPromedio = calcularPrecioPromedio(insumo, dto.getPrecioUnitario(), dto.getCantidad());
         insumo.setPrecioCompra(nuevoPromedio);
-        logger.info("💰 Nuevo precio promedio: ${}", nuevoPromedio);
 
         // 4. Aumentar stock
         Double nuevoStock = insumo.getStockActual() + dto.getCantidad();
         insumo.setStockActual(nuevoStock);
-        logger.info("📈 Nuevo stock: {} (anterior: {})", nuevoStock, insumo.getStockActual() - dto.getCantidad());
 
-        // 5. ✅ NUEVO: Recalcular estado del stock
-        String nuevoEstado = calcularEstadoStock(insumo);
-        insumo.setEstadoStock(nuevoEstado);
-        logger.info("🎯 Nuevo estado: {}", nuevoEstado);
+        // 5. Calcular estado del stock basado en porcentaje (enum)
+        EstadoStock nuevoEstado = calcularEstadoStockEnum(insumo.getStockActual(), insumo.getStockMaximo());
+        insumo.setEstadoStock(nuevoEstado.name());
 
         // 6. Guardar cambios en insumo
-        ArticuloInsumo insumoActualizado = articuloInsumoRepository.save(insumo);
+        articuloInsumoRepository.save(insumo);
 
-        // 7. ✅ NUEVO: Registrar en historial de precios
+        // 7. Registrar en historial de precios
         try {
-            historicoPrecioService.registrarPrecio(
-                    dto.getInsumoId(),
-                    dto.getPrecioUnitario(),
-                    dto.getCantidad());
+            HistoricoPrecio historico = new HistoricoPrecio();
+            historico.setCompra(compraGuardada);
+            historico.setArticuloInsumo(insumo);
+            historico.setPrecioUnitario(dto.getPrecioUnitario());
+            historico.setCantidad(dto.getCantidad());
+            historicoPrecioRepository.save(historico);
             logger.info("✅ Precio registrado en historial");
         } catch (Exception e) {
             logger.warn("⚠️ Error registrando en historial: {}", e.getMessage());
@@ -90,38 +100,106 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
     }
 
     /**
-     * Calcular precio promedio ponderado
+     * ✅ Eliminar compra y recalcular stock + estado
+     * Retorna solo el ID del insumo
      */
-    private Double calcularPrecioPromedio(ArticuloInsumo insumo, Double nuevoPrecio) {
+    @Override
+    @Transactional
+    public Long eliminarCompra(Long idCompra) {
+        logger.info("🗑️ Eliminando compra ID: {}", idCompra);
+
+        // 1. Obtener compra
+        CompraInsumo compra = compraInsumoRepository.findById(idCompra)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Compra no encontrada con ID: " + idCompra));
+
+        ArticuloInsumo insumo = compra.getArticuloInsumo();
+        Long idInsumo = insumo.getIdArticulo();
+
+        logger.info("📦 Compra: {} unidades a ${}", compra.getCantidad(), compra.getPrecioUnitario());
+
+        // 2. Restar stock
+        Double nuevoStock = Math.max(insumo.getStockActual() - compra.getCantidad(), 0.0);
+        insumo.setStockActual(nuevoStock);
+
+        // 3. Recalcular precio promedio
+        Double nuevoPrecio = recalcularPrecioPromedio(insumo, compra.getPrecioUnitario(), compra.getCantidad());
+        insumo.setPrecioCompra(nuevoPrecio);
+
+        // 4. Recalcular estado (enum)
+        EstadoStock nuevoEstado = calcularEstadoStockEnum(insumo.getStockActual(), insumo.getStockMaximo());
+        insumo.setEstadoStock(nuevoEstado.name());
+
+        // 5. Guardar cambios
+        articuloInsumoRepository.save(insumo);
+
+        // 6. Eliminar compra (su HistoricoPrecio se elimina por cascade = REMOVE)
+        compraInsumoRepository.delete(compra);
+        logger.info("✅ Compra eliminada - Retornando ID insumo: {}", idInsumo);
+
+        return idInsumo;
+    }
+
+    /**
+     * ✅ Calcular precio promedio ponderado (al comprar)
+     */
+    private Double calcularPrecioPromedio(ArticuloInsumo insumo, Double nuevoPrecio, Double cantidadComprada) {
         Double stockActual = insumo.getStockActual();
         Double precioActual = insumo.getPrecioCompra();
 
-        if (stockActual <= 0) {
-            // Si no hay stock, usar el nuevo precio
-            return nuevoPrecio;
+        if (stockActual == null || stockActual <= 0 || precioActual == null) {
+            return Math.round(nuevoPrecio * 100.0) / 100.0;
         }
 
-        // Promedio ponderado: (precioActual × stockActual + nuevoPrecio × cantidad) /
-        // (stockActual + cantidad)
-        Double promedio = (precioActual * stockActual + nuevoPrecio * stockActual) / (stockActual + stockActual);
+        Double promedio = (precioActual * stockActual + nuevoPrecio * cantidadComprada)
+                / (stockActual + cantidadComprada);
         return Math.round(promedio * 100.0) / 100.0;
     }
 
     /**
-     * Calcular estado del stock
+     * ✅ Recalcular precio promedio al eliminar compra (si no quedan compras, deja
+     * 0)
      */
-    private String calcularEstadoStock(ArticuloInsumo insumo) {
-        Double porcentaje = (insumo.getStockActual() / insumo.getStockMaximo()) * 100;
-
-        if (porcentaje <= 20) {
-            return "CRITICO";
-        } else if (porcentaje <= 50) {
-            return "BAJO";
-        } else if (porcentaje <= 100) {
-            return "NORMAL";
-        } else {
-            return "ALTO";
+    private Double recalcularPrecioPromedio(ArticuloInsumo insumo, Double precioBorrado, Double cantidadBorrada) {
+        // Recalcula a partir del historial real para evitar arrastre de errores
+        List<HistoricoPrecio> historial = historicoPrecioRepository
+                .findByArticuloOrderByFechaDesc(insumo.getIdArticulo());
+        if (historial == null || historial.isEmpty()) {
+            return 0.0; // sin compras => sin costo promedio
         }
+
+        double totalInvertido = historial.stream()
+                .mapToDouble(h -> h.getPrecioUnitario() * (h.getCantidad() != null ? h.getCantidad() : 1.0))
+                .sum();
+        double totalCantidad = historial.stream()
+                .mapToDouble(h -> (h.getCantidad() != null ? h.getCantidad() : 0.0))
+                .sum();
+
+        double promedio = totalCantidad > 0 ? totalInvertido / totalCantidad : 0.0;
+        return Math.round(promedio * 100.0) / 100.0;
+    }
+
+    /**
+     * ✅ Calcular estado usando los umbrales del enum
+     */
+    private EstadoStock calcularEstadoStockEnum(Double stockActual, Double stockMaximo) {
+        double sa = stockActual != null ? stockActual : 0.0;
+        double sm = stockMaximo != null ? stockMaximo : 0.0;
+
+        if (sm <= 0)
+            return EstadoStock.CRITICO;
+
+        double porcentaje = (sa / sm) * 100.0;
+
+        // Umbrales exactos:
+        // 0–25 => CRITICO, 26–50 => BAJO, 51–75 => NORMAL, 76–100 => ALTO
+        if (porcentaje <= 25.0)
+            return EstadoStock.CRITICO;
+        if (porcentaje <= 50.0)
+            return EstadoStock.BAJO;
+        if (porcentaje <= 75.0)
+            return EstadoStock.NORMAL;
+        return EstadoStock.ALTO;
     }
 
     @Override

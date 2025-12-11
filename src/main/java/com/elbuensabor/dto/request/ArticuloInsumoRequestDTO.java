@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ArticuloInsumoRequestDTO {
 
-    // Campos heredados de Articulo
+    // ==================== CAMPOS HEREDADOS DE ARTICULO ====================
     @NotBlank(message = "La denominación es obligatoria")
     private String denominacion;
 
@@ -24,22 +24,29 @@ public class ArticuloInsumoRequestDTO {
     @NotNull(message = "La categoría es obligatoria")
     private Long idCategoria;
 
-    // Campos específicos de ArticuloInsumo
+    // ==================== CAMPOS ESPECÍFICOS DE ARTICULOINSUMO
+    // ====================
     @NotNull(message = "El precio de compra es obligatorio")
     @DecimalMin(value = "0.0", inclusive = true, message = "El precio de compra debe ser mayor o igual a 0")
     private Double precioCompra;
 
     @NotNull(message = "El stock actual es obligatorio")
-    @Min(value = 0, message = "El stock actual no puede ser negativo")
-    private Integer stockActual;
+    @DecimalMin(value = "0.0", inclusive = true, message = "El stock actual no puede ser negativo")
+    private Double stockActual;
 
     @NotNull(message = "El stock máximo es obligatorio")
-    @Min(value = 1, message = "El stock máximo debe ser mayor a 0")
-    private Integer stockMaximo;
+    @DecimalMin(value = "0.1", inclusive = false, message = "El stock máximo debe ser mayor a 0")
+    private Double stockMaximo;
 
     @NotNull(message = "Debe especificar si es para elaborar")
     private Boolean esParaElaborar;
 
-    // Imagen opcional
-    private ImagenDTO imagen;
+    // ==================== VALIDACIÓN CRUZADA ====================
+    @AssertTrue(message = "El stock actual no puede superar el stock máximo")
+    private boolean isStockValid() {
+        if (stockActual == null || stockMaximo == null) {
+            return true;
+        }
+        return stockActual <= stockMaximo;
+    }
 }

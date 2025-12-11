@@ -17,6 +17,10 @@ public class HistoricoPrecio {
     @Column(name = "id_historico_precio")
     private Long idHistoricoPrecio;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "id_compra_insumo", nullable = false, unique = true)
+    private CompraInsumo compra;
+
     @ManyToOne
     @JoinColumn(name = "id_articulo_insumo", nullable = false)
     private ArticuloInsumo articuloInsumo;

@@ -3,9 +3,7 @@ package com.elbuensabor.services.mapper;
 import com.elbuensabor.dto.request.ArticuloInsumoRequestDTO;
 import com.elbuensabor.dto.response.ArticuloInsumoResponseDTO;
 import com.elbuensabor.entities.ArticuloInsumo;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-import org.mapstruct.MappingTarget;
+import org.mapstruct.*;
 
 @Mapper(componentModel = "spring")
 public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, ArticuloInsumoResponseDTO> {
@@ -15,52 +13,71 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Override
     @Mapping(source = "unidadMedida.idUnidadMedida", target = "idUnidadMedida")
     @Mapping(source = "unidadMedida.denominacion", target = "denominacionUnidadMedida")
-
     @Mapping(source = "categoria.idCategoria", target = "idCategoria")
     @Mapping(source = "categoria.denominacion", target = "denominacionCategoria")
     @Mapping(source = "categoria.esSubcategoria", target = "esSubcategoria")
     @Mapping(source = "categoria.categoriaPadre.denominacion", target = "denominacionCategoriaPadre")
 
-    // Campos calculados se asignan en el service
+    // ✅ CAMPOS CALCULADOS EN SERVICE (ignorados en mapper)
     @Mapping(target = "porcentajeStock", ignore = true)
     @Mapping(target = "estadoStock", ignore = true)
     @Mapping(target = "stockDisponible", source = "stockActual")
+    @Mapping(target = "costoTotalInventario", ignore = true)
+    @Mapping(target = "margenGanancia", ignore = true)
     @Mapping(target = "cantidadProductosQueLoUsan", ignore = true)
-    @Mapping(target = "imagenes", ignore = true) // Se mapea en el service
+    @Mapping(target = "imagenes", ignore = true)
     ArticuloInsumoResponseDTO toDTO(ArticuloInsumo entity);
 
     // ==================== REQUEST DTO → ENTITY (CREATE) ====================
 
     @Mapping(target = "idArticulo", ignore = true)
-    @Mapping(target = "unidadMedida", ignore = true) // Se asigna en el service
-    @Mapping(target = "categoria", ignore = true)    // Se asigna en el service
-    @Mapping(target = "imagenes", ignore = true)     // Se maneja en el service
-    @Mapping(target = "detallesPedido", ignore = true)
-    @Mapping(target = "promociones", ignore = true)
-    @Mapping(target = "detallesManufacturados", ignore = true)
-    ArticuloInsumo toEntity(ArticuloInsumoRequestDTO dto);
+    @Mapping(target = "eliminado", constant = "false")
+    @Mapping(target = "estadoStock", constant = "CRITICO")
 
-    // ==================== RESPONSE DTO → ENTITY (GENERIC) ====================
-
-    @Override
+    // ✅ RELACIONES MANEJADAS EN SERVICE
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "imagenes", ignore = true)
-    @Mapping(target = "detallesPedido", ignore = true)
     @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "imagenes", ignore = true)
+
+    // ✅ RELACIONES INVERSA DE ARTICULOINSUMO
     @Mapping(target = "detallesManufacturados", ignore = true)
-    ArticuloInsumo toEntity(ArticuloInsumoResponseDTO dto);
+    @Mapping(target = "historicosPrecios", ignore = true)
+    @Mapping(target = "compras", ignore = true)
+    ArticuloInsumo toEntity(ArticuloInsumoRequestDTO dto);
 
     // ==================== UPDATE FROM REQUEST DTO ====================
 
     @Mapping(target = "idArticulo", ignore = true)
-    @Mapping(target = "unidadMedida", ignore = true) // Se actualiza en el service
-    @Mapping(target = "categoria", ignore = true)    // Se actualiza en el service
-    @Mapping(target = "imagenes", ignore = true)
-    @Mapping(target = "detallesPedido", ignore = true)
+    @Mapping(target = "eliminado", ignore = true)
+    @Mapping(target = "estadoStock", ignore = true)
+
+    // ✅ RELACIONES MANEJADAS EN SERVICE
+    @Mapping(target = "unidadMedida", ignore = true)
+    @Mapping(target = "categoria", ignore = true)
     @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "imagenes", ignore = true)
+
+    // ✅ RELACIONES INVERSA: NO SE ACTUALIZAN DIRECTAMENTE
     @Mapping(target = "detallesManufacturados", ignore = true)
+    @Mapping(target = "historicosPrecios", ignore = true)
+    @Mapping(target = "compras", ignore = true)
     void updateEntityFromDTO(ArticuloInsumoRequestDTO dto, @MappingTarget ArticuloInsumo entity);
+
+    // ==================== RESPONSE DTO → ENTITY (GENERIC) ====================
+
+    @Override
+    @Mapping(target = "idArticulo", ignore = true)
+    @Mapping(target = "unidadMedida", ignore = true)
+    @Mapping(target = "categoria", ignore = true)
+    @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "imagenes", ignore = true)
+    @Mapping(target = "detallesManufacturados", ignore = true)
+    @Mapping(target = "historicosPrecios", ignore = true)
+    @Mapping(target = "compras", ignore = true)
+    @Mapping(target = "eliminado", ignore = true)
+    @Mapping(target = "estadoStock", ignore = true)
+    ArticuloInsumo toEntity(ArticuloInsumoResponseDTO dto);
 
     // ==================== UPDATE FROM RESPONSE DTO (GENERIC) ====================
 
@@ -68,9 +85,12 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Mapping(target = "idArticulo", ignore = true)
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "imagenes", ignore = true)
-    @Mapping(target = "detallesPedido", ignore = true)
     @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "detallesManufacturados", ignore = true)
+    @Mapping(target = "historicosPrecios", ignore = true)
+    @Mapping(target = "compras", ignore = true)
+    @Mapping(target = "eliminado", ignore = true)
+    @Mapping(target = "estadoStock", ignore = true)
     void updateEntityFromDTO(ArticuloInsumoResponseDTO dto, @MappingTarget ArticuloInsumo entity);
 }

@@ -13,14 +13,8 @@ public interface IHistoricoPrecioService {
     // ✅ Obtener últimos N precios
     List<HistoricoPrecioDTO> getLastNPrecios(Long idArticulo, int limit);
 
-    // ✅ Registrar nuevo precio (se llama automáticamente cuando se compra)
-    HistoricoPrecioDTO registrarPrecio(Long idArticulo, Double precioUnitario, Double cantidad);
-
     // ✅ Obtener estadísticas de precios
     HistoricoPrecioStats getEstadisticas(Long idArticulo);
-
-    // ✅ Eliminar una compra individual
-    void deleteById(Long id);
 
     // ✅ Calcula el precio sugerido de VENTA
     PrecioVentaSugeridoDTO calcularPrecioVentaSugerido(

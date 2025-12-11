@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 @Data
 public class CompraInsumoRequestDTO {
-    private Long insumoId;
+    private Long idArticuloInsumo;
     private Double cantidad;
     private Double precioUnitario;
     private LocalDate fechaCompra;

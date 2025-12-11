@@ -16,7 +16,6 @@ public class ImagenDTO {
     private String denominacion;
 
     @NotBlank(message = "La URL es obligatoria")
-    @Pattern(regexp = "^https?://.*\\.(jpg|jpeg|png|gif|webp)$",
-            message = "URL de imagen inválida")
+    @Pattern(regexp = "^(https?://|/img/).+", message = "URL de imagen inválida")
     private String url;
 }

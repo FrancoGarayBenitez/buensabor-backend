@@ -36,6 +36,9 @@ public class ImagenServiceImpl implements IImagenService {
     @Value("${app.base.url:http://localhost:8080}")
     private String baseUrl;
 
+    @Value("${app.public.img-path:/img/}")
+    private String publicImgPath;
+
     // ==================== CRUD BÁSICAS ====================
 
     @Override
@@ -78,7 +81,8 @@ public class ImagenServiceImpl implements IImagenService {
 
         try {
             String filename = uploadPhysicalFile(file);
-            String url = baseUrl + "/img/" + filename;
+            // Evitar concatenaciones manuales
+            String url = baseUrl + publicImgPath + filename;
 
             Imagen imagen = new Imagen();
             imagen.setDenominacion(denominacion);
@@ -173,26 +177,32 @@ public class ImagenServiceImpl implements IImagenService {
         String fileExtension = getFileExtension(originalFilename);
         String uniqueFilename = generateUniqueFilename(fileExtension);
 
-        Path uploadPath = Paths.get(uploadDir);
+        Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
         }
 
-        Path filePath = uploadPath.resolve(uniqueFilename);
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+        Path filePath = uploadPath.resolve(uniqueFilename).normalize();
+        if (!filePath.startsWith(uploadPath)) {
+            throw new SecurityException("Ruta de archivo inválida");
+        }
 
+        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
         return uniqueFilename;
     }
 
     private void deletePhysicalFile(String imageUrl) {
         try {
             String filename = extractFilenameFromUrl(imageUrl);
-            Path filePath = Paths.get(uploadDir, filename);
-
+            Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
+            Path filePath = uploadPath.resolve(filename).normalize();
+            if (!filePath.startsWith(uploadPath)) {
+                throw new SecurityException("Ruta de archivo inválida");
+            }
             if (Files.exists(filePath)) {
                 Files.delete(filePath);
             }
-        } catch (IOException e) {
+        } catch (IOException | SecurityException e) {
             System.err.println("Error eliminando archivo: " + e.getMessage());
         }
     }
@@ -202,11 +212,10 @@ public class ImagenServiceImpl implements IImagenService {
     }
 
     private boolean isValidImageType(String contentType) {
-        return contentType != null && (contentType.equals("image/jpeg") ||
-                contentType.equals("image/jpg") ||
-                contentType.equals("image/png") ||
-                contentType.equals("image/gif") ||
-                contentType.equals("image/webp"));
+        if (contentType == null)
+            return false;
+        // Aceptar cualquier image/* y evitar depender solo de extensiones
+        return contentType.toLowerCase().startsWith("image/");
     }
 
     private String getFileExtension(String filename) {

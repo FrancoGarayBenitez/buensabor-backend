@@ -43,8 +43,7 @@ public interface DetallePedidoMapper {
     // ✅ TU MÉTODO EXISTENTE - MANTENIDO
     default Integer calcularTiempoPreparacion(com.elbuensabor.entities.Articulo articulo) {
         if (articulo instanceof com.elbuensabor.entities.ArticuloManufacturado) {
-            com.elbuensabor.entities.ArticuloManufacturado manufacturado =
-                    (com.elbuensabor.entities.ArticuloManufacturado) articulo;
+            com.elbuensabor.entities.ArticuloManufacturado manufacturado = (com.elbuensabor.entities.ArticuloManufacturado) articulo;
             return manufacturado.getTiempoEstimadoEnMinutos();
         }
         return 0; // Los insumos no tienen tiempo de preparación
@@ -61,7 +60,8 @@ public interface DetallePedidoMapper {
     }
 
     // ✅ NUEVO: Mapear información de promoción aplicada
-    default DetallePedidoResponseDTO.PromocionAplicadaDTO mapPromocionAplicada(com.elbuensabor.entities.Promocion promocion) {
+    default DetallePedidoResponseDTO.PromocionAplicadaDTO mapPromocionAplicada(
+            com.elbuensabor.entities.Promocion promocion) {
         if (promocion == null) {
             return null;
         }
@@ -72,15 +72,6 @@ public interface DetallePedidoMapper {
         dto.setDescripcion(promocion.getDescripcionDescuento());
         dto.setTipoDescuento(promocion.getTipoDescuento().toString());
         dto.setValorDescuento(promocion.getValorDescuento());
-
-        // Generar resumen del descuento
-        if (promocion.getTipoDescuento() == com.elbuensabor.entities.TipoDescuento.PORCENTUAL) {
-            dto.setResumenDescuento(String.format("%s - %.1f%% de descuento",
-                    promocion.getDenominacion(), promocion.getValorDescuento()));
-        } else {
-            dto.setResumenDescuento(String.format("%s - $%.2f de descuento",
-                    promocion.getDenominacion(), promocion.getValorDescuento()));
-        }
 
         return dto;
     }

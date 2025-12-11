@@ -8,40 +8,41 @@ import java.util.List;
 
 public interface IArticuloInsumoService extends IGenericService<ArticuloInsumo, Long, ArticuloInsumoResponseDTO> {
 
-    // Métodos específicos para insumos
-    ArticuloInsumoResponseDTO createInsumo(ArticuloInsumoRequestDTO insumoRequestDTO);
+    // ==================== CRUD ESPECÍFICOS ====================
+    ArticuloInsumoResponseDTO create(ArticuloInsumoRequestDTO requestDTO);
 
-    ArticuloInsumoResponseDTO updateInsumo(Long id, ArticuloInsumoRequestDTO insumoRequestDTO);
+    ArticuloInsumoResponseDTO update(Long id, ArticuloInsumoRequestDTO requestDTO);
 
-    void deleteById(Long id);
-
-    // Búsquedas específicas
+    // ==================== BÚSQUEDAS POR FILTRO ====================
     List<ArticuloInsumoResponseDTO> findByCategoria(Long idCategoria);
 
     List<ArticuloInsumoResponseDTO> findByUnidadMedida(Long idUnidadMedida);
 
-    List<ArticuloInsumoResponseDTO> findIngredientes(); // esParaElaborar = true
+    List<ArticuloInsumoResponseDTO> findByDenominacion(String denominacion);
 
-    List<ArticuloInsumoResponseDTO> findProductosNoManufacturados(); // esParaElaborar = false
+    // ==================== BÚSQUEDAS POR TIPO ====================
+    List<ArticuloInsumoResponseDTO> findParaElaborar();
 
-    List<ArticuloInsumoResponseDTO> searchByDenominacion(String denominacion);
+    List<ArticuloInsumoResponseDTO> findNoParaElaborar();
 
-    // Control de stock
-    List<ArticuloInsumoResponseDTO> findStockCritico();
+    // ==================== BÚSQUEDAS POR ESTADO DE STOCK ====================
+    List<ArticuloInsumoResponseDTO> findByCriticoStock();
 
-    List<ArticuloInsumoResponseDTO> findStockBajo();
+    List<ArticuloInsumoResponseDTO> findByBajoStock();
 
-    List<ArticuloInsumoResponseDTO> findInsuficientStock(Integer cantidadRequerida);
+    List<ArticuloInsumoResponseDTO> findByAltoStock();
 
-    // Validaciones
+    // ==================== BÚSQUEDAS POR PRECIO ====================
+    // Buscar insumos por rango de precio de compra
+    List<ArticuloInsumoResponseDTO> findByPrecioCompraBetween(Double precioMin, Double precioMax);
+
+    // ==================== VALIDACIONES ====================
     boolean existsByDenominacion(String denominacion);
 
-    boolean hasStockAvailable(Long idInsumo, Integer cantidad);
+    boolean tieneStockDisponible(Long idInsumo, Double cantidad);
 
-    boolean isUsedInProducts(Long idInsumo);
+    boolean estaEnUso(Long idInsumo);
 
-    // Información adicional
-    Double calcularPorcentajeStock(Long idInsumo);
-
-    String determinarEstadoStock(Long idInsumo);
+    // ==================== INFORMACIÓN ====================
+    Integer countProductosQueLoUsan(Long idInsumo);
 }

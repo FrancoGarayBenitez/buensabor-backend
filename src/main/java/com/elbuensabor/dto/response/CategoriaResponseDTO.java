@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 
 import java.util.List;
 
+import com.elbuensabor.entities.TipoCategoria;
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -13,6 +15,7 @@ public class CategoriaResponseDTO {
     private Long idCategoria;
     private String denominacion;
     private Boolean esSubcategoria;
+    private TipoCategoria tipoCategoria;
 
     // Información de la categoría padre (si es subcategoría)
     private Long idCategoriaPadre;
@@ -24,4 +27,3 @@ public class CategoriaResponseDTO {
     // Cantidad de artículos en esta categoría
     private Integer cantidadArticulos;
 }
-

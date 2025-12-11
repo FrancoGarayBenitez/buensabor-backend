@@ -10,7 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name="unidad_medida")
+@Table(name = "unidad_medida")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -24,7 +24,7 @@ public class UnidadMedida {
     @Column(nullable = false)
     private String denominacion;
 
-    @OneToMany(mappedBy = "unidadMedida")
+    @OneToMany(mappedBy = "unidadMedida", fetch = FetchType.LAZY)
     @JsonIgnore
     private List<Articulo> articulos = new ArrayList<>();
 }

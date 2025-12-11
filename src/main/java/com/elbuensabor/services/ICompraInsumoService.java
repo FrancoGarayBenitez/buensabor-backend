@@ -9,12 +9,13 @@ import java.util.List;
 public interface ICompraInsumoService {
     CompraInsumoResponseDTO registrarCompra(CompraInsumoRequestDTO dto);
 
+    Long eliminarCompra(Long idCompra);
+
     List<CompraInsumo> getAllCompras();
 
     CompraInsumo getCompraById(Long id);
 
     List<CompraInsumo> getComprasByInsumoId(Long idInsumo);
 
-    // 🔥 AGREGÁ ESTA LÍNEA 🔥
     CompraInsumoResponseDTO toDto(CompraInsumo compra);
 }

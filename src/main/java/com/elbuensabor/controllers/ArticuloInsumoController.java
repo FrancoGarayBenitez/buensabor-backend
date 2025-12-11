@@ -5,6 +5,8 @@ import com.elbuensabor.dto.response.ArticuloInsumoResponseDTO;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.services.IArticuloInsumoService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,149 +20,183 @@ import java.util.Map;
 @RequestMapping("/api/articulos-insumo")
 public class ArticuloInsumoController {
 
-    private final IArticuloInsumoService articuloInsumoService;
+    private static final Logger logger = LoggerFactory.getLogger(ArticuloInsumoController.class);
+    private final IArticuloInsumoService service;
 
     @Autowired
-    public ArticuloInsumoController(IArticuloInsumoService articuloInsumoService) {
-        this.articuloInsumoService = articuloInsumoService;
+    public ArticuloInsumoController(IArticuloInsumoService service) {
+        this.service = service;
     }
 
-    // ==================== OPERACIONES CRUD BÁSICAS ====================
+    // ==================== CRUD BÁSICAS ====================
 
     @GetMapping
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getAllArticulosInsumo() {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findAll();
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getAll() {
+        logger.debug("📥 GET /api/articulos-insumo - Obteniendo todos los insumos");
+        List<ArticuloInsumoResponseDTO> articulos = service.findAll();
         return ResponseEntity.ok(articulos);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ArticuloInsumoResponseDTO> getArticuloInsumoById(@PathVariable Long id) {
-        ArticuloInsumoResponseDTO articulo = articuloInsumoService.findById(id);
+    public ResponseEntity<ArticuloInsumoResponseDTO> getById(@PathVariable Long id) {
+        logger.debug("📥 GET /api/articulos-insumo/{} - Obteniendo insumo por ID", id);
+        ArticuloInsumoResponseDTO articulo = service.findById(id);
         return ResponseEntity.ok(articulo);
     }
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
-    public ResponseEntity<ArticuloInsumoResponseDTO> createArticuloInsumo(
-            @Valid @RequestBody ArticuloInsumoRequestDTO articuloRequestDTO) {
-        ArticuloInsumoResponseDTO articuloCreado = articuloInsumoService.createInsumo(articuloRequestDTO);
-        return new ResponseEntity<>(articuloCreado, HttpStatus.CREATED);
+    public ResponseEntity<ArticuloInsumoResponseDTO> create(
+            @Valid @RequestBody ArticuloInsumoRequestDTO requestDTO) {
+        logger.info("📝 POST /api/articulos-insumo - Creando insumo: {}", requestDTO.getDenominacion());
+        ArticuloInsumoResponseDTO created = service.create(requestDTO);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
-    public ResponseEntity<ArticuloInsumoResponseDTO> updateArticuloInsumo(
+    public ResponseEntity<ArticuloInsumoResponseDTO> update(
             @PathVariable Long id,
-            @Valid @RequestBody ArticuloInsumoRequestDTO articuloRequestDTO) {
-        ArticuloInsumoResponseDTO articuloActualizado = articuloInsumoService.updateInsumo(id, articuloRequestDTO);
-        return ResponseEntity.ok(articuloActualizado);
+            @Valid @RequestBody ArticuloInsumoRequestDTO requestDTO) {
+        logger.info("📝 PUT /api/articulos-insumo/{} - Actualizando insumo", id);
+        ArticuloInsumoResponseDTO updated = service.update(id, requestDTO);
+        return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<?> deleteArticuloInsumo(@PathVariable Long id) {
-        try {
-            articuloInsumoService.deleteById(id);
-            return ResponseEntity.noContent().build();
-        } catch (IllegalStateException e) {
-            // ✅ Retornar 409 Conflict cuando hay compras asociadas
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
-                    "error", e.getMessage(),
-                    "tipo", "COMPRAS_ASOCIADAS"));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
-                    "error", e.getMessage()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
-                    "error", "Error al eliminar el insumo: " + e.getMessage()));
-        }
+    public ResponseEntity<Void> delete(@PathVariable Long id) {
+        logger.info("🗑️ DELETE /api/articulos-insumo/{} - Eliminando insumo", id);
+        service.delete(id);
+        return ResponseEntity.noContent().build();
     }
 
-    // ==================== BÚSQUEDAS ESPECÍFICAS ====================
+    // ==================== BÚSQUEDAS POR FILTRO ====================
 
     @GetMapping("/categoria/{idCategoria}")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getArticulosByCategoria(@PathVariable Long idCategoria) {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findByCategoria(idCategoria);
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByCategoria(
+            @PathVariable Long idCategoria) {
+        logger.debug("🔍 GET /api/articulos-insumo/categoria/{}", idCategoria);
+        List<ArticuloInsumoResponseDTO> articulos = service.findByCategoria(idCategoria);
         return ResponseEntity.ok(articulos);
     }
 
     @GetMapping("/unidad-medida/{idUnidadMedida}")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getArticulosByUnidadMedida(
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByUnidadMedida(
             @PathVariable Long idUnidadMedida) {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findByUnidadMedida(idUnidadMedida);
+        logger.debug("🔍 GET /api/articulos-insumo/unidad-medida/{}", idUnidadMedida);
+        List<ArticuloInsumoResponseDTO> articulos = service.findByUnidadMedida(idUnidadMedida);
         return ResponseEntity.ok(articulos);
-    }
-
-    @GetMapping("/ingredientes")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getIngredientes() {
-        List<ArticuloInsumoResponseDTO> ingredientes = articuloInsumoService.findIngredientes();
-        return ResponseEntity.ok(ingredientes);
-    }
-
-    @GetMapping("/productos-no-manufacturados")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getProductosNoManufacturados() {
-        List<ArticuloInsumoResponseDTO> productos = articuloInsumoService.findProductosNoManufacturados();
-        return ResponseEntity.ok(productos);
     }
 
     @GetMapping("/buscar")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> searchArticulos(@RequestParam String denominacion) {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.searchByDenominacion(denominacion);
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> searchByDenominacion(
+            @RequestParam String denominacion) {
+        logger.debug("🔍 GET /api/articulos-insumo/buscar?denominacion={}", denominacion);
+        List<ArticuloInsumoResponseDTO> articulos = service.findByDenominacion(denominacion);
         return ResponseEntity.ok(articulos);
     }
 
-    // ==================== CONTROL DE STOCK ====================
+    // ==================== BÚSQUEDAS POR TIPO ====================
+
+    @GetMapping("/tipo/para-elaborar")
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getParaElaborar() {
+        logger.debug("🔍 GET /api/articulos-insumo/tipo/para-elaborar");
+        List<ArticuloInsumoResponseDTO> insumos = service.findParaElaborar();
+        return ResponseEntity.ok(insumos);
+    }
+
+    @GetMapping("/tipo/no-para-elaborar")
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getNoParaElaborar() {
+        logger.debug("🔍 GET /api/articulos-insumo/tipo/no-para-elaborar");
+        List<ArticuloInsumoResponseDTO> productos = service.findNoParaElaborar();
+        return ResponseEntity.ok(productos);
+    }
+
+    // ==================== BÚSQUEDAS POR ESTADO DE STOCK ====================
 
     @GetMapping("/stock/critico")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getStockCritico() {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findStockCritico();
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByCriticoStock() {
+        logger.debug("🔍 GET /api/articulos-insumo/stock/critico");
+        List<ArticuloInsumoResponseDTO> articulos = service.findByCriticoStock();
         return ResponseEntity.ok(articulos);
     }
 
     @GetMapping("/stock/bajo")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getStockBajo() {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findStockBajo();
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByBajoStock() {
+        logger.debug("🔍 GET /api/articulos-insumo/stock/bajo");
+        List<ArticuloInsumoResponseDTO> articulos = service.findByBajoStock();
         return ResponseEntity.ok(articulos);
     }
 
-    @GetMapping("/stock/insuficiente")
-    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getStockInsuficiente(@RequestParam Integer cantidad) {
-        List<ArticuloInsumoResponseDTO> articulos = articuloInsumoService.findInsuficientStock(cantidad);
+    @GetMapping("/stock/alto")
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByAltoStock() {
+        logger.debug("🔍 GET /api/articulos-insumo/stock/alto");
+        List<ArticuloInsumoResponseDTO> articulos = service.findByAltoStock();
         return ResponseEntity.ok(articulos);
     }
 
-    // ==================== ENDPOINTS DE VALIDACIÓN E INFORMACIÓN
-    // ====================
+    // ==================== BÚSQUEDAS POR PRECIO ====================
+
+    @GetMapping("/precio")
+    public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByPrecioRange(
+            @RequestParam Double precioMin,
+            @RequestParam Double precioMax) {
+        logger.debug("🔍 GET /api/articulos-insumo/precio?precioMin={}&precioMax={}", precioMin, precioMax);
+        List<ArticuloInsumoResponseDTO> articulos = service.findByPrecioCompraBetween(precioMin, precioMax);
+        return ResponseEntity.ok(articulos);
+    }
+
+    // ==================== VALIDACIONES ====================
 
     @GetMapping("/exists")
     public ResponseEntity<Boolean> existsByDenominacion(@RequestParam String denominacion) {
-        boolean exists = articuloInsumoService.existsByDenominacion(denominacion);
+        logger.debug("✓ GET /api/articulos-insumo/exists?denominacion={}", denominacion);
+        boolean exists = service.existsByDenominacion(denominacion);
         return ResponseEntity.ok(exists);
     }
 
-    @GetMapping("/{id}/stock-available")
-    public ResponseEntity<Boolean> hasStockAvailable(
+    @GetMapping("/{id}/en-uso")
+    public ResponseEntity<Boolean> estaEnUso(@PathVariable Long id) {
+        logger.debug("✓ GET /api/articulos-insumo/{}/en-uso", id);
+        boolean enUso = service.estaEnUso(id);
+        return ResponseEntity.ok(enUso);
+    }
+
+    @GetMapping("/{id}/productos-que-lo-usan")
+    public ResponseEntity<Integer> countProductosQueLoUsan(@PathVariable Long id) {
+        logger.debug("✓ GET /api/articulos-insumo/{}/productos-que-lo-usan", id);
+        Integer count = service.countProductosQueLoUsan(id);
+        return ResponseEntity.ok(count);
+    }
+
+    @GetMapping("/{id}/stock-disponible")
+    public ResponseEntity<Boolean> tieneStockDisponible(
             @PathVariable Long id,
-            @RequestParam Integer cantidad) {
-        boolean hasStock = articuloInsumoService.hasStockAvailable(id, cantidad);
-        return ResponseEntity.ok(hasStock);
+            @RequestParam Double cantidad) {
+        logger.debug("✓ GET /api/articulos-insumo/{}/stock-disponible?cantidad={}", id, cantidad);
+        boolean disponible = service.tieneStockDisponible(id, cantidad);
+        return ResponseEntity.ok(disponible);
     }
 
-    @GetMapping("/{id}/used-in-products")
-    public ResponseEntity<Boolean> isUsedInProducts(@PathVariable Long id) {
-        boolean isUsed = articuloInsumoService.isUsedInProducts(id);
-        return ResponseEntity.ok(isUsed);
-    }
+    // ==================== INFORMACIÓN CALCULADA ====================
 
-    @GetMapping("/{id}/porcentaje-stock")
-    public ResponseEntity<Double> getPorcentajeStock(@PathVariable Long id) {
-        Double porcentaje = articuloInsumoService.calcularPorcentajeStock(id);
-        return ResponseEntity.ok(porcentaje);
-    }
+    @GetMapping("/{id}/informacion-stock")
+    public ResponseEntity<Map<String, Object>> getInformacionStock(@PathVariable Long id) {
+        logger.debug("ℹ️ GET /api/articulos-insumo/{}/informacion-stock", id);
+        ArticuloInsumoResponseDTO insumo = service.findById(id);
 
-    @GetMapping("/{id}/estado-stock")
-    public ResponseEntity<String> getEstadoStock(@PathVariable Long id) {
-        String estado = articuloInsumoService.determinarEstadoStock(id);
-        return ResponseEntity.ok(estado);
+        Map<String, Object> info = Map.of(
+                "idArticulo", insumo.getIdArticulo(),
+                "denominacion", insumo.getDenominacion(),
+                "stockActual", insumo.getStockActual(),
+                "stockMaximo", insumo.getStockMaximo(),
+                "porcentajeStock", insumo.getPorcentajeStock(),
+                "estadoStock", insumo.getEstadoStock(),
+                "costoTotalInventario", insumo.getCostoTotalInventario(),
+                "margenGanancia", insumo.getMargenGanancia(),
+                "cantidadProductosQueLoUsan", insumo.getCantidadProductosQueLoUsan());
+
+        return ResponseEntity.ok(info);
     }
 }

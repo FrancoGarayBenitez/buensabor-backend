@@ -3,17 +3,14 @@ package com.elbuensabor.services.impl;
 import com.elbuensabor.dto.request.ArticuloInsumoRequestDTO;
 import com.elbuensabor.dto.request.ImagenDTO;
 import com.elbuensabor.dto.response.ArticuloInsumoResponseDTO;
-import com.elbuensabor.entities.Articulo;
 import com.elbuensabor.entities.ArticuloInsumo;
 import com.elbuensabor.entities.Categoria;
-import com.elbuensabor.entities.HistoricoPrecio;
-import com.elbuensabor.entities.Imagen;
+import com.elbuensabor.entities.TipoCategoria;
 import com.elbuensabor.entities.UnidadMedida;
 import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IArticuloInsumoRepository;
 import com.elbuensabor.repository.ICategoriaRepository;
-import com.elbuensabor.repository.IHistoricoPrecioRepository;
 import com.elbuensabor.repository.IUnidadMedidaRepository;
 import com.elbuensabor.services.IArticuloInsumoService;
 import com.elbuensabor.services.mapper.ArticuloInsumoMapper;
@@ -29,6 +26,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ArticuloInsumoServiceImpl extends
         GenericServiceImpl<ArticuloInsumo, Long, ArticuloInsumoResponseDTO, IArticuloInsumoRepository, ArticuloInsumoMapper>
         implements IArticuloInsumoService {
@@ -42,204 +40,240 @@ public class ArticuloInsumoServiceImpl extends
     private IUnidadMedidaRepository unidadMedidaRepository;
 
     @Autowired
-    private IHistoricoPrecioRepository historicoPrecioRepository;
-
-    @Autowired
-    public ArticuloInsumoServiceImpl(IArticuloInsumoRepository repository, ArticuloInsumoMapper mapper) {
+    public ArticuloInsumoServiceImpl(
+            IArticuloInsumoRepository repository,
+            ArticuloInsumoMapper mapper) {
         super(repository, mapper, ArticuloInsumo.class, ArticuloInsumoResponseDTO.class);
     }
 
-    // ==================== SOBRESCRIBIR MÉTODOS GENÉRICOS ====================
+    // ==================== CRUD ====================
 
     @Override
     @Transactional(readOnly = true)
     public List<ArticuloInsumoResponseDTO> findAll() {
+        logger.debug("📋 Obteniendo todos los insumos");
+
         return repository.findAll().stream()
-                .map(this::mapearInsumoCompleto)
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public ArticuloInsumoResponseDTO findById(Long id) {
-        ArticuloInsumo insumo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
-        return mapearInsumoCompleto(insumo);
+        logger.debug("🔍 Buscando insumo ID: {}", id);
+
+        ArticuloInsumo entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Insumo con ID " + id + " no encontrado"));
+
+        return enriquecerResponseDTO(entity);
     }
 
     @Override
     @Transactional
-    public void deleteById(Long id) {
-        Articulo articulo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo no encontrado"));
+    public ArticuloInsumoResponseDTO create(ArticuloInsumoRequestDTO requestDTO) {
+        logger.info("📝 Creando nuevo insumo: {}", requestDTO.getDenominacion());
 
-        // ✅ Validar si tiene compras (históricos de precio)
-        List<HistoricoPrecio> historicos = historicoPrecioRepository.findByArticuloOrderByFechaDesc(id);
-
-        if (!historicos.isEmpty()) {
-            System.out.println("⚠️ ADVERTENCIA: Se eliminará '" + articulo.getDenominacion() +
-                    "' con " + historicos.size() + " compra(s) asociada(s)");
-        }
-
-        repository.deleteById(id);
-
-        System.out.println("✅ Insumo eliminado: " + articulo.getDenominacion());
-    }
-
-    // ==================== MÉTODOS ESPECÍFICOS ====================
-
-    @Override
-    @Transactional
-    public ArticuloInsumoResponseDTO createInsumo(ArticuloInsumoRequestDTO insumoRequestDTO) {
-        // Validar que no exista un insumo con el mismo nombre
-        if (repository.existsByDenominacion(insumoRequestDTO.getDenominacion())) {
+        // 1️⃣ Validar denominación duplicada
+        if (repository.existsByDenominacion(requestDTO.getDenominacion())) {
             throw new DuplicateResourceException(
-                    "Ya existe un artículo con la denominación: " + insumoRequestDTO.getDenominacion());
+                    "Ya existe un insumo con la denominación: " + requestDTO.getDenominacion());
         }
 
-        // Validar stock máximo >= stock actual
-        if (insumoRequestDTO.getStockMaximo() < insumoRequestDTO.getStockActual()) {
-            throw new IllegalArgumentException("El stock máximo no puede ser menor al stock actual");
-        }
+        // 2️⃣ Mapear DTO a entidad (sin relaciones)
+        ArticuloInsumo entity = mapper.toEntity(requestDTO);
 
-        // Mapear DTO a Entity
-        ArticuloInsumo insumo = mapper.toEntity(insumoRequestDTO);
+        // 3️⃣ Asignar y validar relaciones
+        asignarRelaciones(entity, requestDTO);
 
-        // Asignar relaciones
-        asignarRelaciones(insumo, insumoRequestDTO);
+        // 4️⃣ Validar que categoría sea apta para insumos (INGREDIENTES o BEBIDAS)
+        validarCategoriaAptaParaInsumos(entity.getCategoria());
 
-        // Imagen
-        if (insumoRequestDTO.getImagen() != null) {
-            Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
-            imagen.setArticulo(insumo);
-            insumo.getImagenes().add(imagen);
-            logger.info("✅ Imagen agregada al insumo: {}", insumoRequestDTO.getImagen().getDenominacion());
-        }
+        // 5️⃣ Inicializar colecciones
+        entity.setImagenes(new ArrayList<>());
+        entity.setDetallesManufacturados(new ArrayList<>());
+        entity.setHistoricosPrecios(new ArrayList<>());
+        entity.setCompras(new ArrayList<>());
 
-        ArticuloInsumo savedInsumo = repository.save(insumo);
-        logger.info("✅ Insumo creado exitosamente: {} (ID: {})",
-                savedInsumo.getDenominacion(), savedInsumo.getIdArticulo());
-        return mapearInsumoCompleto(savedInsumo);
+        // 6️⃣ Guardar
+        ArticuloInsumo saved = repository.save(entity);
+        logger.info("✅ Insumo creado exitosamente: {} (ID: {}) - Sin estado hasta primera compra",
+                saved.getDenominacion(), saved.getIdArticulo());
+
+        return enriquecerResponseDTO(saved);
     }
 
     @Override
     @Transactional
-    public ArticuloInsumoResponseDTO updateInsumo(Long id, ArticuloInsumoRequestDTO insumoRequestDTO) {
+    public ArticuloInsumoResponseDTO update(Long id, ArticuloInsumoRequestDTO requestDTO) {
         logger.info("📝 Actualizando insumo ID: {}", id);
 
-        ArticuloInsumo existingInsumo = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Artículo insumo con ID " + id + " no encontrado"));
+        // 1️⃣ Obtener entidad existente
+        ArticuloInsumo entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Insumo con ID " + id + " no encontrado"));
 
-        // Validar nombre duplicado (excluyendo el actual)
-        if (repository.existsByDenominacion(insumoRequestDTO.getDenominacion()) &&
-                !existingInsumo.getDenominacion().equals(insumoRequestDTO.getDenominacion())) {
+        // 2️⃣ Validar denominación duplicada (excluyendo el actual)
+        if (!entity.getDenominacion().equals(requestDTO.getDenominacion()) &&
+                repository.existsByDenominacion(requestDTO.getDenominacion())) {
             throw new DuplicateResourceException(
-                    "Ya existe otro artículo con la denominación: " + insumoRequestDTO.getDenominacion());
+                    "Ya existe otro insumo con la denominación: " + requestDTO.getDenominacion());
         }
 
-        // Validar stock máximo >= stock actual
-        if (insumoRequestDTO.getStockMaximo() < insumoRequestDTO.getStockActual()) {
-            throw new IllegalArgumentException("El stock máximo no puede ser menor al stock actual");
-        }
+        // 3️⃣ Actualizar desde DTO
+        mapper.updateEntityFromDTO(requestDTO, entity);
 
-        // Actualizar campos básicos
-        mapper.updateEntityFromDTO(insumoRequestDTO, existingInsumo);
+        // 4️⃣ Actualizar relaciones si cambiaron
+        asignarRelaciones(entity, requestDTO);
 
-        // Actualizar relaciones
-        asignarRelaciones(existingInsumo, insumoRequestDTO);
+        // 5️⃣ Validar que categoría sea apta para insumos (INGREDIENTES o BEBIDAS)
+        validarCategoriaAptaParaInsumos(entity.getCategoria());
 
-        // Limpiar imágenes existentes
-        if (existingInsumo.getImagenes() != null) {
-            existingInsumo.getImagenes().clear();
-        } else {
-            existingInsumo.setImagenes(new ArrayList<>());
-        }
+        // ✅ NO RECALCULAR ESTADO - Solo se modifica con compras
+        // entity.setEstadoStock() ← NO TOCAR
 
-        // Manejo de imagen
-        if (insumoRequestDTO.getImagen() != null) {
-            Imagen imagen = crearImagen(insumoRequestDTO.getImagen());
-            imagen.setArticulo(existingInsumo);
-            existingInsumo.getImagenes().add(imagen);
-            logger.info("✅ Imagen actualizada para insumo: {}", insumoRequestDTO.getImagen().getDenominacion());
-        }
+        // 6️⃣ Guardar
+        ArticuloInsumo updated = repository.save(entity);
+        logger.info("✅ Insumo actualizado: {}", updated.getDenominacion());
 
-        ArticuloInsumo updatedInsumo = repository.save(existingInsumo);
-        logger.info("✅ Insumo actualizado: {}", updatedInsumo.getDenominacion());
-
-        return mapearInsumoCompleto(updatedInsumo);
+        return enriquecerResponseDTO(updated);
     }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        logger.info("🗑️ Eliminando insumo ID: {}", id);
+
+        ArticuloInsumo entity = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Insumo con ID " + id + " no encontrado"));
+
+        // Validar que no está en uso
+        if (estaEnUso(id)) {
+            Integer cantidadProductos = countProductosQueLoUsan(id);
+            throw new IllegalArgumentException(
+                    "No se puede eliminar este insumo. Está en uso en " + cantidadProductos + " productos");
+        }
+
+        repository.delete(entity);
+        logger.info("✅ Insumo eliminado permanentemente: {}", entity.getDenominacion());
+    }
+
+    // ==================== BÚSQUEDAS POR FILTRO ====================
 
     @Override
     @Transactional(readOnly = true)
     public List<ArticuloInsumoResponseDTO> findByCategoria(Long idCategoria) {
-        List<ArticuloInsumo> insumos = repository.findByCategoriaIdCategoria(idCategoria);
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
+        logger.debug("🔍 Buscando insumos por categoría: {}", idCategoria);
+
+        return repository.findByCategoriaIdCategoria(idCategoria).stream()
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ArticuloInsumoResponseDTO> findByUnidadMedida(Long idUnidadMedida) {
-        List<ArticuloInsumo> insumos = repository.findByUnidadMedidaIdUnidadMedida(idUnidadMedida);
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
+        logger.debug("🔍 Buscando insumos por unidad de medida: {}", idUnidadMedida);
+
+        return repository.findByUnidadMedidaIdUnidadMedida(idUnidadMedida).stream()
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> findIngredientes() {
-        List<ArticuloInsumo> ingredientes = repository.findByEsParaElaborarTrue();
-        return ingredientes.stream()
-                .map(this::mapearInsumoCompleto)
+    public List<ArticuloInsumoResponseDTO> findByDenominacion(String denominacion) {
+        logger.debug("🔍 Buscando insumos por denominación: {}", denominacion);
+
+        return repository.findByDenominacionContainingIgnoreCase(denominacion).stream()
+                .map(this::enriquecerResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    // ==================== BÚSQUEDAS POR TIPO ====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ArticuloInsumoResponseDTO> findParaElaborar() {
+        logger.debug("🔍 Buscando insumos para elaborar");
+
+        return repository.findByEsParaElaborarTrue().stream()
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> findProductosNoManufacturados() {
-        List<ArticuloInsumo> productos = repository.findByEsParaElaborarFalse();
-        return productos.stream()
-                .map(this::mapearInsumoCompleto)
+    public List<ArticuloInsumoResponseDTO> findNoParaElaborar() {
+        logger.debug("🔍 Buscando insumos no para elaborar");
+
+        return repository.findByEsParaElaborarFalse().stream()
+                .map(this::enriquecerResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    // ==================== BÚSQUEDAS POR ESTADO DE STOCK ====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ArticuloInsumoResponseDTO> findByCriticoStock() {
+        logger.debug("🔍 Buscando insumos con stock crítico");
+
+        return repository.findAll().stream()
+                .filter(insumo -> "CRITICO".equals(insumo.getEstadoStock()))
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> searchByDenominacion(String denominacion) {
-        List<ArticuloInsumo> insumos = repository.findByDenominacionContainingIgnoreCase(denominacion);
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
+    public List<ArticuloInsumoResponseDTO> findByBajoStock() {
+        logger.debug("🔍 Buscando insumos con stock bajo");
+
+        return repository.findAll().stream()
+                .filter(insumo -> "BAJO".equals(insumo.getEstadoStock()))
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> findStockCritico() {
-        List<ArticuloInsumo> insumos = repository.findStockCritico();
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
+    public List<ArticuloInsumoResponseDTO> findByAltoStock() {
+        logger.debug("🔍 Buscando insumos con stock alto");
+
+        return repository.findAll().stream()
+                .filter(insumo -> "ALTO".equals(insumo.getEstadoStock()))
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> findStockBajo() {
-        List<ArticuloInsumo> insumos = repository.findStockBajo();
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
-                .collect(Collectors.toList());
-    }
+    // ==================== BÚSQUEDAS POR PRECIO ====================
 
     @Override
     @Transactional(readOnly = true)
-    public List<ArticuloInsumoResponseDTO> findInsuficientStock(Integer cantidadRequerida) {
-        List<ArticuloInsumo> insumos = repository.findInsuficientStock(cantidadRequerida);
-        return insumos.stream()
-                .map(this::mapearInsumoCompleto)
+    public List<ArticuloInsumoResponseDTO> findByPrecioCompraBetween(Double precioMin, Double precioMax) {
+        logger.debug("🔍 Buscando insumos con precio de compra entre ${} y ${}", precioMin, precioMax);
+
+        if (precioMin == null || precioMax == null) {
+            throw new IllegalArgumentException("Los precios mínimo y máximo son obligatorios");
+        }
+
+        if (precioMin < 0 || precioMax < 0) {
+            throw new IllegalArgumentException("Los precios no pueden ser negativos");
+        }
+
+        if (precioMin > precioMax) {
+            throw new IllegalArgumentException("El precio mínimo no puede ser mayor al precio máximo");
+        }
+
+        return repository.findByPrecioCompraBetween(precioMin, precioMax).stream()
+                .map(this::enriquecerResponseDTO)
                 .collect(Collectors.toList());
     }
+
+    // ==================== VALIDACIONES ====================
 
     @Override
     @Transactional(readOnly = true)
@@ -249,85 +283,98 @@ public class ArticuloInsumoServiceImpl extends
 
     @Override
     @Transactional(readOnly = true)
-    public boolean hasStockAvailable(Long idInsumo, Integer cantidad) {
-        return repository.hasStockAvailable(idInsumo, cantidad);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public boolean isUsedInProducts(Long idInsumo) {
-        Integer count = repository.countProductosQueUsan(idInsumo);
-        return count > 0;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public Double calcularPorcentajeStock(Long idInsumo) {
+    public boolean tieneStockDisponible(Long idInsumo, Double cantidad) {
         ArticuloInsumo insumo = repository.findById(idInsumo)
-                .orElseThrow(
-                        () -> new ResourceNotFoundException("Artículo insumo con ID " + idInsumo + " no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Insumo con ID " + idInsumo + " no encontrado"));
 
-        if (insumo.getStockMaximo() == 0)
-            return 0.0;
-        return (insumo.getStockActual() * 100.0) / insumo.getStockMaximo();
+        return insumo.tieneStockDisponible(cantidad);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public String determinarEstadoStock(Long idInsumo) {
-        Double porcentaje = calcularPorcentajeStock(idInsumo);
-
-        if (porcentaje <= 25)
-            return "CRITICO";
-        if (porcentaje <= 50)
-            return "BAJO";
-        if (porcentaje <= 75)
-            return "NORMAL";
-        return "ALTO";
+    public boolean estaEnUso(Long idInsumo) {
+        return countProductosQueLoUsan(idInsumo) > 0;
     }
 
-    // ==================== MÉTODOS AUXILIARES ====================
+    // ==================== INFORMACIÓN ====================
 
-    private ArticuloInsumoResponseDTO mapearInsumoCompleto(ArticuloInsumo insumo) {
-        ArticuloInsumoResponseDTO dto = mapper.toDTO(insumo);
+    @Override
+    @Transactional(readOnly = true)
+    public Integer countProductosQueLoUsan(Long idInsumo) {
+        Integer count = repository.countProductosQueUsan(idInsumo);
+        return count != null ? count : 0;
+    }
 
-        // Calcular información adicional
-        dto.setPorcentajeStock(calcularPorcentajeStock(insumo.getIdArticulo()));
-        dto.setEstadoStock(determinarEstadoStock(insumo.getIdArticulo()));
-        dto.setCantidadProductosQueLoUsan(repository.countProductosQueUsan(insumo.getIdArticulo()));
+    // ==================== MÉTODOS PRIVADOS ====================
 
-        // Mapear imágenes
-        if (!insumo.getImagenes().isEmpty()) {
-            List<ImagenDTO> imagenesDTO = insumo.getImagenes().stream()
-                    .map(imagen -> new ImagenDTO(imagen.getIdImagen(), imagen.getDenominacion(), imagen.getUrl()))
-                    .collect(Collectors.toList());
-            dto.setImagenes(imagenesDTO);
+    /**
+     * ✅ Enriquecer DTO sin calcular estado
+     * El estado solo se calcula con compras (CompraInsumoServiceImpl)
+     */
+    private ArticuloInsumoResponseDTO enriquecerResponseDTO(ArticuloInsumo entity) {
+        // 1️⃣ Mapeo básico
+        ArticuloInsumoResponseDTO dto = mapper.toDTO(entity);
+
+        // 2️⃣ Calcular porcentaje de stock
+        dto.setPorcentajeStock(entity.getPorcentajeStock());
+
+        // ✅ NO RECALCULAR ESTADO - Solo viene del entity (asignado por
+        // CompraInsumoServiceImpl)
+        dto.setEstadoStock(entity.getEstadoStock());
+
+        // 3️⃣ Calcular costo total del inventario
+        dto.setCostoTotalInventario(entity.getCostoTotalInventario());
+
+        // 4️⃣ Calcular margen de ganancia
+        dto.setMargenGanancia(entity.getMargenGanancia());
+
+        // 5️⃣ Contar productos que lo usan
+        dto.setCantidadProductosQueLoUsan(
+                entity.getDetallesManufacturados() != null
+                        ? entity.getDetallesManufacturados().size()
+                        : 0);
+
+        // 6️⃣ Mapear imágenes
+        if (entity.getImagenes() != null && !entity.getImagenes().isEmpty()) {
+            dto.setImagenes(entity.getImagenes().stream()
+                    .map(imagen -> new ImagenDTO(
+                            imagen.getIdImagen(),
+                            imagen.getDenominacion(),
+                            imagen.getUrl()))
+                    .collect(Collectors.toList()));
+        } else {
+            dto.setImagenes(new ArrayList<>());
         }
 
         return dto;
     }
 
-    private void asignarRelaciones(ArticuloInsumo insumo, ArticuloInsumoRequestDTO dto) {
-        // Asignar unidad de medida (DEBE existir previamente)
-        UnidadMedida unidadMedida = unidadMedidaRepository.findById(dto.getIdUnidadMedida())
+    /**
+     * ✅ Asignar relaciones FK desde DTO
+     */
+    private void asignarRelaciones(ArticuloInsumo entity, ArticuloInsumoRequestDTO requestDTO) {
+        // Asignar unidad de medida
+        UnidadMedida unidadMedida = unidadMedidaRepository.findById(requestDTO.getIdUnidadMedida())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Unidad de medida con ID " + dto.getIdUnidadMedida() + " no encontrada"));
-        insumo.setUnidadMedida(unidadMedida);
-        unidadMedida.getArticulos().add(insumo);
+                        "Unidad de medida con ID " + requestDTO.getIdUnidadMedida() + " no encontrada"));
+        entity.setUnidadMedida(unidadMedida);
 
-        // Asignar categoría (DEBE existir previamente)
-        Categoria categoria = categoriaRepository.findById(dto.getIdCategoria())
+        // Asignar categoría
+        Categoria categoria = categoriaRepository.findById(requestDTO.getIdCategoria())
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Categoría con ID " + dto.getIdCategoria() + " no encontrada"));
-        insumo.setCategoria(categoria);
+                        "Categoría con ID " + requestDTO.getIdCategoria() + " no encontrada"));
+        entity.setCategoria(categoria);
     }
 
-    private Imagen crearImagen(ImagenDTO imagenDTO) {
-        Imagen imagen = new Imagen();
-        imagen.setDenominacion(imagenDTO.getDenominacion());
-        imagen.setUrl(imagenDTO.getUrl());
-        // Con cascada, no necesitamos guardar la imagen por separado
-        return imagen;
+    // ✅ Nueva validación central
+    private void validarCategoriaAptaParaInsumos(Categoria categoria) {
+        if (categoria == null || categoria.getTipoCategoria() == null) {
+            throw new IllegalArgumentException("La categoría seleccionada es inválida");
+        }
+        TipoCategoria tipo = categoria.getTipoCategoria();
+        if (!(TipoCategoria.INGREDIENTES.equals(tipo) || TipoCategoria.BEBIDAS.equals(tipo))) {
+            throw new IllegalArgumentException("La categoría debe ser de tipo INGREDIENTES o BEBIDAS");
+        }
     }
-
 }

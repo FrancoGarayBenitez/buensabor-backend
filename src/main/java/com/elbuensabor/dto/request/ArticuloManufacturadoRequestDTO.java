@@ -17,6 +17,10 @@ public class ArticuloManufacturadoRequestDTO {
     @NotBlank(message = "La denominación es obligatoria")
     private String denominacion;
 
+    @NotNull(message = "El precio de venta es obligatorio")
+    @DecimalMin(value = "0.0", inclusive = false, message = "El precio de venta debe ser mayor a 0")
+    private Double precioVenta;
+
     @NotNull(message = "La unidad de medida es obligatoria")
     private Long idUnidadMedida;
 
@@ -24,28 +28,24 @@ public class ArticuloManufacturadoRequestDTO {
     private Long idCategoria;
 
     // Campos específicos de ArticuloManufacturado
-    @Size(max = 1000, message = "La descripción no puede exceder 1000 caracteres")
+    @Size(max = 1000, message = "La descripción no puede superar los 1000 caracteres")
     private String descripcion;
 
-    @NotNull(message = "El tiempo estimado es obligatorio")
-    @Min(value = 1, message = "El tiempo estimado debe ser mayor a 0")
+    @NotNull(message = "El tiempo estimado en minutos es obligatorio")
+    @Min(value = 0, message = "El tiempo estimado no puede ser negativo")
     private Integer tiempoEstimadoEnMinutos;
 
+    @NotBlank(message = "La preparación es obligatoria")
     private String preparacion;
 
-    // Precio de venta (opcional si se calcula automáticamente)
-    @DecimalMin(value = "0.0", inclusive = false, message = "El precio de venta debe ser mayor a 0")
-    private Double precioVenta; // Puede ser null si se calcula automáticamente
+    @NotNull(message = "El margen de ganancia es obligatorio")
+    @DecimalMin(value = "0.0", inclusive = true, message = "El margen de ganancia debe ser mayor o igual a 0")
+    private Double margenGanancia;
 
-    // Margen de ganancia (para calcular precio automáticamente)
-    @DecimalMin(value = "1.0", message = "El margen debe ser mayor a 1")
-    private Double margenGanancia; // Ej: 2.5 = 250% sobre el costo
+    // Detalles de la receta
+    @NotEmpty(message = "El producto debe tener al menos un ingrediente")
+    private List<@Valid DetalleManufacturadoRequestDTO> detalles;
 
-    // Lista de ingredientes/insumos
-    @Valid
-    @NotEmpty(message = "Debe tener al menos un ingrediente")
-    private List<ManufacturadoDetalleDTO> detalles;
-
-    // Imagen opcional
-    private ImagenDTO imagen;
+    // Imágenes
+    private List<ImagenDTO> imagenes;
 }

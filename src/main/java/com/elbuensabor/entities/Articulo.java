@@ -4,7 +4,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,20 +28,42 @@ public class Articulo {
     @Column(nullable = false)
     private Boolean eliminado = false;
 
-    @ManyToOne
-    @JoinColumn(name = "id_unidad_medida")
+    // ✅ RELACIONES COMPARTIDAS
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "id_unidad_medida", nullable = false)
     private UnidadMedida unidadMedida;
 
-    @OneToMany(mappedBy = "articulo", cascade = CascadeType.ALL)
-    private List<Imagen> imagenes = new ArrayList<>();
-
-    @ManyToOne
-    @JoinColumn(name = "id_categoria")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "id_categoria", nullable = false)
     private Categoria categoria;
 
-    @OneToMany(mappedBy = "articulo")
-    private List<DetallePedido> detallesPedido = new ArrayList<>();
+    @OneToMany(mappedBy = "articulo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Imagen> imagenes = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "articulos")
+    @ManyToMany(mappedBy = "articulos", fetch = FetchType.LAZY)
     private List<Promocion> promociones = new ArrayList<>();
+
+    // ==================== MÉTODOS SIMPLES - Lógica de Dominio ====================
+
+    // Consulta de estado (necesario para reglas de negocio)
+    public boolean tienePromocionVigente() {
+        return promociones.stream().anyMatch(Promocion::estaVigente);
+    }
+
+    // Obtener promoción activa (necesario para cálculos)
+    public Promocion getPromocionVigente() {
+        return promociones.stream()
+                .filter(Promocion::estaVigente)
+                .findFirst()
+                .orElse(null);
+    }
+
+    // Métodos de validación
+    public boolean puedeEliminarse() {
+        return !this.eliminado;
+    }
+
+    public void marcarEliminado() {
+        this.eliminado = true;
+    }
 }

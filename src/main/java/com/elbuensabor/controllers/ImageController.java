@@ -31,6 +31,9 @@ public class ImageController {
     @Value("${app.base.url:http://localhost:8080}")
     private String baseUrl;
 
+    @Value("${app.public.img-path:/img/}")
+    private String publicImgPath;
+
     // ==================== UPLOAD - GENÉRICO ====================
 
     /**
@@ -125,6 +128,8 @@ public class ImageController {
             @PathVariable String entityType,
             @PathVariable Long entityId) {
         try {
+            // TODO: ramificar por tipo si agregas Promoción/Cliente
+            // Por ahora: artículos (INSUMO/MANUFACTURADO)
             List<Imagen> imagenes = imagenService.findByArticulo(entityId);
             return ResponseEntity.ok(imagenes);
         } catch (Exception e) {
@@ -191,28 +196,38 @@ public class ImageController {
         String fileExtension = getFileExtension(file.getOriginalFilename());
         String uniqueFilename = generateUniqueFilename(fileExtension);
 
-        Path uploadPath = Paths.get(uploadDir);
+        Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
         if (!Files.exists(uploadPath)) {
             Files.createDirectories(uploadPath);
         }
 
-        Path filePath = uploadPath.resolve(uniqueFilename);
+        Path filePath = uploadPath.resolve(uniqueFilename).normalize();
+        if (!filePath.startsWith(uploadPath)) {
+            throw new SecurityException("Ruta de archivo inválida");
+        }
+
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
-        return baseUrl + "/img/" + uniqueFilename;
+        return baseUrl + publicImgPath + uniqueFilename;
     }
 
     private boolean deletePhysicalFile(String imageUrl) {
         try {
             String filename = extractFilenameFromUrl(imageUrl);
-            Path filePath = Paths.get(uploadDir, filename);
+
+            Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
+            Path filePath = uploadPath.resolve(filename).normalize();
+
+            if (!filePath.startsWith(uploadPath)) {
+                throw new SecurityException("Ruta de archivo inválida");
+            }
 
             if (Files.exists(filePath)) {
                 Files.delete(filePath);
                 return !Files.exists(filePath);
             }
             return true;
-        } catch (IOException e) {
+        } catch (IOException | SecurityException e) {
             System.err.println("Error eliminando archivo: " + e.getMessage());
             return false;
         }

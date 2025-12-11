@@ -4,8 +4,6 @@ import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -37,43 +35,38 @@ public class Promocion {
     @Column(name = "hora_hasta", nullable = false)
     private LocalTime horaHasta;
 
-    @Column(name = "descripcion_descuento")
+    @Column(name = "descripcion_descuento", length = 500)
     private String descripcionDescuento;
 
-    // ✅ NUEVO: Tipo de descuento
     @Enumerated(EnumType.STRING)
     @Column(name = "tipo_descuento", nullable = false)
     private TipoDescuento tipoDescuento = TipoDescuento.PORCENTUAL;
 
-    // ✅ RENOMBRADO: Más claro para manejar ambos tipos
     @Column(name = "valor_descuento", nullable = false)
     private Double valorDescuento; // % si es PORCENTUAL, $ si es MONTO_FIJO
 
-    // ✅ NUEVO: Precio final calculado automáticamente (opcional)
-    @Column(name = "precio_promocional")
-    private Double precioPromocional;
-
-    // ✅ NUEVO: Estado activo/inactivo
     @Column(nullable = false)
     private Boolean activo = true;
 
-    // ✅ NUEVO: Para promociones que requieren cantidad mínima
-    @Column(name = "cantidad_minima")
+    @Column(name = "cantidad_minima", nullable = false)
     private Integer cantidadMinima = 1;
 
-    @ManyToMany
-    @JoinTable(
-            name = "promocion_articulo",
-            joinColumns = @JoinColumn(name = "id_promocion"),
-            inverseJoinColumns = @JoinColumn(name = "id_articulo")
-    )
+    // ✅ RELACIONES
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(name = "promocion_articulo", joinColumns = @JoinColumn(name = "id_promocion"), inverseJoinColumns = @JoinColumn(name = "id_articulo"))
     private List<Articulo> articulos = new ArrayList<>();
 
-    @OneToMany(mappedBy = "promocion", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "promocion", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Imagen> imagenes = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "promociones")
+    @ManyToMany(mappedBy = "promociones", fetch = FetchType.LAZY)
     private List<SucursalEmpresa> sucursales = new ArrayList<>();
+
+    // ✅ ENUMS
+    public enum TipoDescuento {
+        PORCENTUAL,
+        MONTO_FIJO
+    }
 
     // ✅ MÉTODOS DE UTILIDAD
     public boolean estaVigente() {
@@ -102,13 +95,15 @@ public class Promocion {
             return 0.0;
         }
 
-        switch (tipoDescuento) {
-            case PORCENTUAL:
-                return precioOriginal * cantidad * (valorDescuento / 100);
-            case MONTO_FIJO:
-                return Math.min(valorDescuento * cantidad, precioOriginal * cantidad);
-            default:
-                return 0.0;
-        }
+        Double descuentoBase = switch (tipoDescuento) {
+            case PORCENTUAL -> precioOriginal * (valorDescuento / 100);
+            case MONTO_FIJO -> valorDescuento;
+        };
+
+        return Math.min(descuentoBase * cantidad, precioOriginal * cantidad);
+    }
+
+    public Double calcularPrecioConDescuento(Double precioOriginal, Integer cantidad) {
+        return Math.max(0, (precioOriginal * cantidad) - calcularDescuento(precioOriginal, cantidad));
     }
 }

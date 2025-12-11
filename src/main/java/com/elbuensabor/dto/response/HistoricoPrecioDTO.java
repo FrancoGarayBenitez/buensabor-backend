@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class HistoricoPrecioDTO {
     private Long idHistoricoPrecio;
-    private Long idArticulo;
+    private Long idCompra;
     private Double precioUnitario;
     private LocalDateTime fecha;
     private Double cantidad;

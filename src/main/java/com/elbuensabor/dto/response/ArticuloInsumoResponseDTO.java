@@ -12,36 +12,37 @@ import java.util.List;
 @AllArgsConstructor
 public class ArticuloInsumoResponseDTO {
 
-    // Campos heredados de Articulo
+    // ==================== INFORMACIÓN BÁSICA ====================
     private Long idArticulo;
     private String denominacion;
     private Double precioVenta;
     private Boolean eliminado;
 
-    // Información de Unidad de Medida
+    // ==================== UNIDAD DE MEDIDA ====================
     private Long idUnidadMedida;
     private String denominacionUnidadMedida;
 
-    // Información de Categoría
+    // ==================== CATEGORÍA ====================
     private Long idCategoria;
     private String denominacionCategoria;
     private Boolean esSubcategoria;
     private String denominacionCategoriaPadre;
 
-    // Campos específicos de ArticuloInsumo
+    // ==================== DATOS DE INSUMO ====================
     private Double precioCompra;
-    private Integer stockActual;
-    private Integer stockMaximo;
+    private Double stockActual;
+    private Double stockMaximo;
     private Boolean esParaElaborar;
 
-    // Información calculada
+    // ==================== INFORMACIÓN CALCULADA (Calculada en Service)
+    // ====================
+    private String estadoStock; // CRITICO, BAJO, NORMAL, ALTO
     private Double porcentajeStock; // (stockActual / stockMaximo) * 100
-    private String estadoStock; // "CRITICO", "BAJO", "NORMAL", "ALTO"
-    private Integer stockDisponible; // stockActual (para uso externo)
+    private Double stockDisponible; // Alias de stockActual
+    private Double costoTotalInventario; // precioCompra * stockActual
+    private Double margenGanancia; // ((precioVenta - precioCompra) / precioCompra) * 100
 
-    // Imagen
+    // ==================== RELACIONES ====================
     private List<ImagenDTO> imagenes;
-
-    // Información de uso (cuántos productos manufacturados lo usan)
     private Integer cantidadProductosQueLoUsan;
 }
