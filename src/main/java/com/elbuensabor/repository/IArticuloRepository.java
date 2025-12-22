@@ -32,4 +32,13 @@ public interface IArticuloRepository extends JpaRepository<Articulo, Long> {
     // Obtener todos los artículos disponibles (tanto insumos como manufacturados)
     @Query("SELECT a FROM Articulo a ORDER BY a.denominacion")
     List<Articulo> findAllArticulos();
+
+    // Incluye activos y desactivados (sin filtrar por eliminado)
+    @Query("SELECT a FROM Articulo a WHERE LOWER(a.denominacion) = LOWER(:denominacion)")
+    Optional<Articulo> findByDenominacionIgnoreCaseIncludingEliminado(@Param("denominacion") String denominacion);
+
+    @Query("SELECT a FROM Articulo a WHERE LOWER(a.denominacion) = LOWER(:denominacion) AND a.idArticulo <> :excludeId")
+    Optional<Articulo> findByDenominacionIgnoreCaseAndIdNotIncludingEliminado(
+            @Param("denominacion") String denominacion,
+            @Param("excludeId") Long excludeId);
 }

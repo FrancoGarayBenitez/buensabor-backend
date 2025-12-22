@@ -20,11 +20,11 @@ public class ArticuloManufacturado extends Articulo {
     @Column(name = "tiempo_estimado_minutos", nullable = false)
     private Integer tiempoEstimadoEnMinutos = 0;
 
-    @Column(name = "preparacion", length = 2000)
+    @Column(name = "preparacion", length = 4000) // Aumentado para preparaciones largas
     private String preparacion;
 
     @Column(name = "margen_ganancia", nullable = false)
-    private Double margenGanancia = 1.0;
+    private Double margenGanancia = 1.0; // Multiplicador (ej: 1.3 = 30% de margen)
 
     @Column(name = "costo_produccion", nullable = false)
     private Double costoProduccion = 0.0;
@@ -32,46 +32,101 @@ public class ArticuloManufacturado extends Articulo {
     @OneToMany(mappedBy = "articuloManufacturado", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<DetalleManufacturado> detalles = new ArrayList<>();
 
-    // ==================== MÉTODOS SIMPLES ====================
+    // ==================== LÓGICA DE NEGOCIO (REFACTORIZADA) ====================
 
-    // Cálculo de ganancia (lógica de dominio)
+    /**
+     * Recalcula el costo de producción basado en el precio actual de los
+     * ingredientes
+     * y actualiza el campo 'costoProduccion'.
+     * 
+     * @return El nuevo costo de producción.
+     */
+    public Double actualizarCostoProduccion() {
+        Double nuevoCosto = detalles.stream()
+                .mapToDouble(detalle -> detalle.getArticuloInsumo().getPrecioCompra() * detalle.getCantidad())
+                .sum();
+        this.costoProduccion = Math.round(nuevoCosto * 100.0) / 100.0; // Redondeo a 2 decimales
+        return this.costoProduccion;
+    }
+
+    /**
+     * Actualiza el precio de venta basado en el costo de producción recalculado y
+     * el margen de ganancia.
+     * 
+     * @return El nuevo precio de venta.
+     */
+    public Double actualizarPrecioVenta() {
+        actualizarCostoProduccion(); // Asegura que el costo es el más reciente
+        Double nuevoPrecio = this.costoProduccion * this.margenGanancia;
+        this.setPrecioVenta(Math.round(nuevoPrecio * 100.0) / 100.0);
+        return this.getPrecioVenta();
+    }
+
+    /**
+     * Calcula la ganancia neta por unidad (Precio de Venta - Costo de Producción).
+     * 
+     * @return La ganancia.
+     */
     public Double calcularGanancia() {
         if (this.getPrecioVenta() == null || this.costoProduccion == null) {
             return 0.0;
         }
-        return (this.getPrecioVenta() - this.costoProduccion) * this.margenGanancia;
+        return this.getPrecioVenta() - this.costoProduccion;
     }
 
-    // Calcular margen porcentual
-    public Double calcularMargenPorcentaje() {
-        if (this.costoProduccion == null || this.costoProduccion == 0) {
-            return 0.0;
+    /**
+     * Convierte el margen multiplicador (ej: 1.3) a un porcentaje (ej: 30.0).
+     * 
+     * @return El margen en formato de porcentaje.
+     */
+    public Double getMargenGananciaPorcentaje() {
+        return (this.margenGanancia - 1) * 100;
+    }
+
+    /**
+     * Fija el margen multiplicador a partir de un porcentaje.
+     * 
+     * @param porcentaje El margen en porcentaje (ej: 30 para un 30%).
+     */
+    public void setMargenGananciaPorcentaje(Double porcentaje) {
+        if (porcentaje == null || porcentaje < 0) {
+            this.margenGanancia = 1.0;
+        } else {
+            this.margenGanancia = 1 + (porcentaje / 100);
         }
-        return ((this.getPrecioVenta() - this.costoProduccion) / this.costoProduccion) * 100;
     }
 
-    // Verificar si hay detalles (es una receta completa)
-    public boolean tieneReceta() {
-        return detalles != null && !detalles.isEmpty();
+    // ==================== LÓGICA DE STOCK ====================
+
+    /**
+     * Verifica si hay stock suficiente de todos los ingredientes para producir una
+     * cantidad dada.
+     * 
+     * @param cantidadAProducir El número de unidades del producto a fabricar.
+     * @return true si hay stock suficiente, false en caso contrario.
+     */
+    public boolean verificarStockSuficiente(int cantidadAProducir) {
+        if (detalles == null || detalles.isEmpty()) {
+            return true; // No requiere ingredientes
+        }
+        return detalles.stream().allMatch(
+                detalle -> detalle.getArticuloInsumo().getStockActual() >= detalle.getCantidad() * cantidadAProducir);
     }
 
-    // Contar ingredientes únicos
-    public Integer contarIngredientes() {
-        return detalles != null ? detalles.size() : 0;
-    }
-
-    // Calcular costo total de ingredientes
-    public Double calcularCostoIngredientes() {
+    /**
+     * Calcula la cantidad máxima de este producto que se puede preparar con el
+     * stock actual de ingredientes.
+     * 
+     * @return El número máximo de unidades fabricables.
+     */
+    public Integer calcularCantidadMaximaPreparable() {
+        if (detalles == null || detalles.isEmpty()) {
+            return Integer.MAX_VALUE; // No depende de stock de insumos
+        }
         return detalles.stream()
-                .mapToDouble(detalle -> detalle.getArticuloInsumo().getPrecioCompra() * detalle.getCantidad())
-                .sum();
-    }
-
-    // Validar consistencia de costos
-    public boolean esCostoProduccionValido() {
-        Double costoCalculado = calcularCostoIngredientes();
-        // Permitir pequeñas variaciones (5%)
-        Double tolerancia = costoCalculado * 0.05;
-        return Math.abs(this.costoProduccion - costoCalculado) <= tolerancia;
+                .mapToInt(detalle -> (int) Math
+                        .floor(detalle.getArticuloInsumo().getStockActual() / detalle.getCantidad()))
+                .min()
+                .orElse(0);
     }
 }

@@ -12,6 +12,9 @@ import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IArticuloInsumoRepository;
 import com.elbuensabor.repository.ICategoriaRepository;
 import com.elbuensabor.repository.IUnidadMedidaRepository;
+import com.elbuensabor.repository.ICompraInsumoRepository;
+import com.elbuensabor.repository.IHistoricoPrecioRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import com.elbuensabor.services.IArticuloInsumoService;
 import com.elbuensabor.services.mapper.ArticuloInsumoMapper;
 
@@ -38,6 +41,11 @@ public class ArticuloInsumoServiceImpl extends
 
     @Autowired
     private IUnidadMedidaRepository unidadMedidaRepository;
+
+    @Autowired
+    private IHistoricoPrecioRepository historicoPrecioRepository;
+    @Autowired
+    private ICompraInsumoRepository compraInsumoRepository;
 
     @Autowired
     public ArticuloInsumoServiceImpl(
@@ -83,6 +91,8 @@ public class ArticuloInsumoServiceImpl extends
 
         // 2️⃣ Mapear DTO a entidad (sin relaciones)
         ArticuloInsumo entity = mapper.toEntity(requestDTO);
+        entity.setEsParaElaborar(
+                requestDTO.getEsParaElaborar() != null ? requestDTO.getEsParaElaborar() : Boolean.TRUE);
 
         // 3️⃣ Asignar y validar relaciones
         asignarRelaciones(entity, requestDTO);
@@ -123,6 +133,9 @@ public class ArticuloInsumoServiceImpl extends
 
         // 3️⃣ Actualizar desde DTO
         mapper.updateEntityFromDTO(requestDTO, entity);
+        if (requestDTO.getEsParaElaborar() != null) {
+            entity.setEsParaElaborar(requestDTO.getEsParaElaborar());
+        }
 
         // 4️⃣ Actualizar relaciones si cambiaron
         asignarRelaciones(entity, requestDTO);
@@ -149,15 +162,24 @@ public class ArticuloInsumoServiceImpl extends
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Insumo con ID " + id + " no encontrado"));
 
-        // Validar que no está en uso
         if (estaEnUso(id)) {
             Integer cantidadProductos = countProductosQueLoUsan(id);
             throw new IllegalArgumentException(
                     "No se puede eliminar este insumo. Está en uso en " + cantidadProductos + " productos");
         }
 
-        repository.delete(entity);
-        logger.info("✅ Insumo eliminado permanentemente: {}", entity.getDenominacion());
+        try {
+            // ✅ eliminar dependencias (por si el JPA cascade no ejecuta antes)
+            historicoPrecioRepository.deleteByArticuloInsumoId(id);
+            compraInsumoRepository.deleteByArticuloInsumoId(id);
+
+            repository.delete(entity);
+            logger.info("✅ Insumo eliminado permanentemente: {}", entity.getDenominacion());
+        } catch (DataIntegrityViolationException ex) {
+            logger.error("❌ Violación de integridad al eliminar insumo {}: {}", id, ex.getMessage());
+            throw new DataIntegrityViolationException("No se pudo eliminar el insumo: existen referencias aún vigentes",
+                    ex);
+        }
     }
 
     // ==================== BÚSQUEDAS POR FILTRO ====================

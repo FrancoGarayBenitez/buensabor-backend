@@ -13,38 +13,42 @@ import java.util.List;
 @AllArgsConstructor
 public class ArticuloManufacturadoRequestDTO {
 
-    // Campos heredados de Articulo
-    @NotBlank(message = "La denominación es obligatoria")
+    // Artículo base
+    @NotBlank
     private String denominacion;
 
-    @NotNull(message = "El precio de venta es obligatorio")
-    @DecimalMin(value = "0.0", inclusive = false, message = "El precio de venta debe ser mayor a 0")
+    // El precio de venta ahora es opcional en el request, se puede calcular desde
+    // el costo y margen
+    @DecimalMin(value = "0.0", inclusive = true)
     private Double precioVenta;
 
-    @NotNull(message = "La unidad de medida es obligatoria")
+    @NotNull
     private Long idUnidadMedida;
 
-    @NotNull(message = "La categoría es obligatoria")
-    private Long idCategoria;
+    @NotNull
+    private Long idCategoria; // debe ser de tipo COMIDAS
 
-    // Campos específicos de ArticuloManufacturado
-    @Size(max = 1000, message = "La descripción no puede superar los 1000 caracteres")
+    // Manufacturado
+    @Size(max = 1000)
     private String descripcion;
 
-    @NotNull(message = "El tiempo estimado en minutos es obligatorio")
-    @Min(value = 0, message = "El tiempo estimado no puede ser negativo")
-    private Integer tiempoEstimadoEnMinutos;
-
-    @NotBlank(message = "La preparación es obligatoria")
+    @Size(max = 4000)
     private String preparacion;
 
-    @NotNull(message = "El margen de ganancia es obligatorio")
-    @DecimalMin(value = "0.0", inclusive = true, message = "El margen de ganancia debe ser mayor o igual a 0")
-    private Double margenGanancia;
+    @NotNull
+    @Min(0)
+    private Integer tiempoEstimadoEnMinutos;
 
-    // Detalles de la receta
-    @NotEmpty(message = "El producto debe tener al menos un ingrediente")
-    private List<@Valid DetalleManufacturadoRequestDTO> detalles;
+    // ✅ Margen como porcentaje (0–100), más intuitivo para el usuario
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = true)
+    private Double margenGananciaPorcentaje;
+
+    // Receta
+    @NotNull
+    @Size(min = 1, message = "Debe contener al menos un ingrediente")
+    @Valid
+    private List<DetalleManufacturadoRequestDTO> detalles;
 
     // Imágenes
     private List<ImagenDTO> imagenes;

@@ -17,6 +17,7 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Mapping(source = "categoria.denominacion", target = "denominacionCategoria")
     @Mapping(source = "categoria.esSubcategoria", target = "esSubcategoria")
     @Mapping(source = "categoria.categoriaPadre.denominacion", target = "denominacionCategoriaPadre")
+    @Mapping(source = "esParaElaborar", target = "esParaElaborar")
 
     // ✅ CAMPOS CALCULADOS EN SERVICE (ignorados en mapper)
     @Mapping(target = "porcentajeStock", ignore = true)

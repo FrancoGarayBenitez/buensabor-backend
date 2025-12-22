@@ -55,14 +55,31 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void crearUnidadesDeMedida() {
-        String[] unidades = { "kg", "g", "l", "ml", "unidad", "paquete", "docena" };
-        for (String denom : unidades) {
+        // Unidades base (Insumos)
+        String[] unidadesInsumo = { "g", "ml", "unidad" };
+        // Unidades adicionales pensadas para Manufacturados
+        String[] unidadesManufacturado = { "docena", "media docena", "docena y media", "porción", "entero", "combo" };
+
+        for (String denom : unidadesInsumo) {
             if (!unidadMedidaRepository.existsByDenominacionIgnoreCase(denom)) {
                 UnidadMedida um = new UnidadMedida();
                 um.setDenominacion(denom);
                 try {
                     unidadMedidaRepository.save(um);
                     System.out.println("✅ Unidad de medida creada: " + denom);
+                } catch (DataIntegrityViolationException ex) {
+                    System.out.println("⚠️ Ya existe (concurrency) la unidad: " + denom);
+                }
+            }
+        }
+
+        for (String denom : unidadesManufacturado) {
+            if (!unidadMedidaRepository.existsByDenominacionIgnoreCase(denom)) {
+                UnidadMedida um = new UnidadMedida();
+                um.setDenominacion(denom);
+                try {
+                    unidadMedidaRepository.save(um);
+                    System.out.println("✅ Unidad de medida para manufacturado creada: " + denom);
                 } catch (DataIntegrityViolationException ex) {
                     System.out.println("⚠️ Ya existe (concurrency) la unidad: " + denom);
                 }

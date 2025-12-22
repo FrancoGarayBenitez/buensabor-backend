@@ -32,21 +32,24 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
     private final IHistoricoPrecioRepository historicoPrecioRepository;
 
     /**
-     * ✅ Registrar compra Y calcular estado
+     * ✅ Registrar compra SOLO por paquetes y calcular estado
      */
     @Override
     @Transactional
     public CompraInsumoResponseDTO registrarCompra(CompraInsumoRequestDTO dto) {
-        logger.info("📦 Registrando compra para insumo {}: {} unidades a ${}",
-                dto.getIdArticuloInsumo(), dto.getCantidad(), dto.getPrecioUnitario());
+        logger.info("📦 Compra por paquetes -> insumo={}, paquetes={}, contenido/paq={} {}, precio/paq={}",
+                dto.getIdArticuloInsumo(), dto.getPaquetes(),
+                dto.getContenidoPorPaquete(), dto.getUnidadContenido(), dto.getPrecioPorPaquete());
 
-        // ✅ VALIDACIONES PREVIAS
-        if (dto.getCantidad() == null || dto.getCantidad() <= 0) {
-            throw new IllegalArgumentException("La cantidad debe ser mayor a 0");
+        // Validaciones nuevas (flujo paquetes)
+        if (dto.getPaquetes() == null || dto.getPaquetes() <= 0) {
+            throw new IllegalArgumentException("Los paquetes deben ser > 0");
         }
-
-        if (dto.getPrecioUnitario() == null || dto.getPrecioUnitario() <= 0) {
-            throw new IllegalArgumentException("El precio unitario debe ser mayor a 0");
+        if (dto.getContenidoPorPaquete() == null || dto.getContenidoPorPaquete() <= 0) {
+            throw new IllegalArgumentException("El contenido por paquete debe ser > 0");
+        }
+        if (dto.getPrecioPorPaquete() == null || dto.getPrecioPorPaquete() <= 0) {
+            throw new IllegalArgumentException("El precio por paquete debe ser > 0");
         }
 
         // 1. Validar que el insumo existe
@@ -57,45 +60,61 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
                             "Insumo no encontrado con ID: " + dto.getIdArticuloInsumo());
                 });
 
-        // 2. Guardar compra
+        // 2. Normalizar contenido de UN paquete a unidad técnica (g/ml/unidad)
+        String unidadTecnica = norm(insumo.getUnidadMedida().getDenominacion()); // "g" | "ml" | "unidad"
+        String unidadContenido = norm(dto.getUnidadContenido());
+        if (unidadContenido.isEmpty())
+            unidadContenido = unidadTecnica;
+
+        double contenidoPorPaqueteTecnico = contenidoPorPaqueteAUnidadTecnica(
+                unidadTecnica, dto.getContenidoPorPaquete(), unidadContenido);
+
+        // 3. Calcular cantidad técnica total y precio unitario técnico
+        double cantidadTecnica = dto.getPaquetes() * contenidoPorPaqueteTecnico;
+        double precioUnitarioTecnico = dto.getPrecioPorPaquete() / contenidoPorPaqueteTecnico;
+
+        // 4. Guardar compra (siempre en unidad técnica)
         CompraInsumo compra = new CompraInsumo();
         compra.setArticuloInsumo(insumo);
-        compra.setCantidad(dto.getCantidad());
-        compra.setPrecioUnitario(dto.getPrecioUnitario());
+        compra.setCantidad(cantidadTecnica); // ✅ unidad técnica
+        compra.setPrecioUnitario(redondear2(precioUnitarioTecnico)); // ✅ $ por unidad técnica
         compra.setFechaCompra(dto.getFechaCompra() != null ? dto.getFechaCompra() : LocalDate.now());
 
         CompraInsumo compraGuardada = compraInsumoRepository.save(compra);
-        logger.info("✅ Compra guardada con ID: {}", compraGuardada.getId());
+        logger.info("✅ Compra guardada ID: {} ({} {} a ${}/{}) => cantidad técnica: {}, total: ${}",
+                compraGuardada.getId(),
+                dto.getPaquetes(), "paquetes", dto.getPrecioPorPaquete(), "paquete",
+                cantidadTecnica, dto.getPaquetes() * dto.getPrecioPorPaquete());
 
-        // 3. Actualizar precio promedio (ponderado)
-        Double nuevoPromedio = calcularPrecioPromedio(insumo, dto.getPrecioUnitario(), dto.getCantidad());
+        // 5. Actualizar precio promedio (ponderado) usando cantidad técnica
+        Double nuevoPromedio = calcularPrecioPromedio(insumo, compra.getPrecioUnitario(), cantidadTecnica);
         insumo.setPrecioCompra(nuevoPromedio);
 
-        // 4. Aumentar stock
-        Double nuevoStock = insumo.getStockActual() + dto.getCantidad();
-        insumo.setStockActual(nuevoStock);
+        // 6. Aumentar stock (unidad técnica)
+        Double stockActual = insumo.getStockActual() != null ? insumo.getStockActual() : 0.0;
+        insumo.setStockActual(stockActual + cantidadTecnica);
 
-        // 5. Calcular estado del stock basado en porcentaje (enum)
+        // 7. Calcular estado del stock (enum)
         EstadoStock nuevoEstado = calcularEstadoStockEnum(insumo.getStockActual(), insumo.getStockMaximo());
         insumo.setEstadoStock(nuevoEstado.name());
 
-        // 6. Guardar cambios en insumo
+        // 8. Guardar cambios en insumo
         articuloInsumoRepository.save(insumo);
 
-        // 7. Registrar en historial de precios
+        // 9. Registrar en historial de precios (cantidad técnica)
         try {
             HistoricoPrecio historico = new HistoricoPrecio();
             historico.setCompra(compraGuardada);
             historico.setArticuloInsumo(insumo);
-            historico.setPrecioUnitario(dto.getPrecioUnitario());
-            historico.setCantidad(dto.getCantidad());
+            historico.setPrecioUnitario(compra.getPrecioUnitario());
+            historico.setCantidad(cantidadTecnica); // ✅ unidad técnica
             historicoPrecioRepository.save(historico);
             logger.info("✅ Precio registrado en historial");
         } catch (Exception e) {
             logger.warn("⚠️ Error registrando en historial: {}", e.getMessage());
         }
 
-        logger.info("✅ Compra procesada exitosamente");
+        logger.info("✅ Compra procesada exitosamente (flujo paquetes)");
         return toDto(compraGuardada);
     }
 
@@ -224,13 +243,58 @@ public class CompraInsumoServiceImpl implements ICompraInsumoService {
         dto.setId(compra.getId());
         dto.setIdArticuloInsumo(compra.getArticuloInsumo().getIdArticulo());
         dto.setDenominacionInsumo(compra.getArticuloInsumo().getDenominacion());
-        dto.setCantidad(compra.getCantidad());
-        dto.setPrecioUnitario(compra.getPrecioUnitario());
+        dto.setCantidad(compra.getCantidad()); // normalizado (unidad técnica)
+        dto.setPrecioUnitario(compra.getPrecioUnitario()); // $ por unidad técnica
         dto.setFechaCompra(compra.getFechaCompra());
         if (compra.getArticuloInsumo().getImagenes() != null &&
                 !compra.getArticuloInsumo().getImagenes().isEmpty()) {
             dto.setImagenUrl(compra.getArticuloInsumo().getImagenes().get(0).getUrl());
         }
+        // Nota: si luego persistes campos de paquete en CompraInsumo, mápealos aquí.
         return dto;
+    }
+
+    /**
+     * 🔁 Conversión del contenido de UN paquete a la unidad técnica (g, ml o
+     * unidad)
+     */
+    private double contenidoPorPaqueteAUnidadTecnica(String unidadTecnica, double contenido, String unidadContenido) {
+        String base = unidadTecnica;
+        String u = unidadContenido;
+
+        // normalizar alias
+        if (base.equals("gramo") || base.equals("gramos"))
+            base = "g";
+        if (base.equals("mililitro") || base.equals("mililitros"))
+            base = "ml";
+
+        if (u.equals("kilogramo") || u.equals("kilogramos"))
+            u = "kg";
+        if (u.equals("litro") || u.equals("litros"))
+            u = "l";
+
+        if (base.equals("g")) {
+            if (u.equals("kg"))
+                return contenido * 1000.0;
+            return contenido; // g
+        }
+        if (base.equals("ml")) {
+            if (u.equals("l"))
+                return contenido * 1000.0;
+            return contenido; // ml
+        }
+        // unidad
+        return contenido;
+    }
+
+    private String norm(String s) {
+        return s == null ? "" : s.trim().toLowerCase();
+    }
+
+    /**
+     * Redondear a 2 decimales (String)
+     */
+    private Double redondear2(double valor) {
+        return Math.round(valor * 100.0) / 100.0;
     }
 }

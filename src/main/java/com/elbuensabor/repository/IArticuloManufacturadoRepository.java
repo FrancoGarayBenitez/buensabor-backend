@@ -11,13 +11,47 @@ import java.util.List;
 @Repository
 public interface IArticuloManufacturadoRepository extends JpaRepository<ArticuloManufacturado, Long> {
 
-    // Verificar si existe por denominación
+    // ==================== BÚSQUEDAS POR DENOMINACIÓN (para validaciones y
+    // búsqueda) ====================
+
+    /**
+     * Verifica si ya existe un producto con la misma denominación.
+     * Usado para evitar duplicados al crear.
+     * 
+     * @param denominacion La denominación a verificar.
+     * @return true si existe, false si no.
+     */
     boolean existsByDenominacion(String denominacion);
 
-    // Buscar por denominación (búsqueda parcial)
-    List<ArticuloManufacturado> findByDenominacionContainingIgnoreCase(String denominacion);
+    /**
+     * Verifica si existe otro producto con la misma denominación, excluyendo el ID
+     * actual.
+     * Usado para evitar duplicados al actualizar.
+     * 
+     * @param denominacion La denominación a verificar.
+     * @param id           El ID del producto que se está actualizando.
+     * @return true si existe otro, false si no.
+     */
+    boolean existsByDenominacionAndIdArticuloNot(String denominacion, Long id);
 
-    // Buscar por categoría
+    /**
+     * Busca productos cuya denominación contenga el texto de búsqueda, ignorando
+     * mayúsculas/minúsculas.
+     * 
+     * @param denominacion El término de búsqueda.
+     * @return Lista de productos que coinciden.
+     */
+    @Query("SELECT am FROM ArticuloManufacturado am WHERE LOWER(am.denominacion) LIKE LOWER(CONCAT('%', :denominacion, '%'))")
+    List<ArticuloManufacturado> findByDenominacionContainingIgnoreCase(@Param("denominacion") String denominacion);
+
+    // ==================== BÚSQUEDAS POR RELACIONES ====================
+
+    /**
+     * Busca todos los productos que pertenecen a una categoría específica.
+     * 
+     * @param idCategoria El ID de la categoría.
+     * @return Lista de productos en esa categoría.
+     */
     List<ArticuloManufacturado> findByCategoriaIdCategoria(Long idCategoria);
 
     // Contar cuántos productos manufacturados usan un insumo específico

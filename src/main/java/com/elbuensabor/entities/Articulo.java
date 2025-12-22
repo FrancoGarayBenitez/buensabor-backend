@@ -9,7 +9,11 @@ import java.util.List;
 
 @Entity
 @Inheritance(strategy = InheritanceType.JOINED)
-@Table(name = "articulo")
+@Table(name = "articulo", uniqueConstraints = {
+        @UniqueConstraint(name = "ux_articulo_denominacion", columnNames = "denominacion")
+}, indexes = {
+        @Index(name = "ix_articulo_eliminado", columnList = "eliminado")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

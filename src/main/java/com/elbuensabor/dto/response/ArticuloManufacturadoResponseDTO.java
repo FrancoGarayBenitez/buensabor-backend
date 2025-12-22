@@ -1,6 +1,8 @@
 package com.elbuensabor.dto.response;
 
 import com.elbuensabor.dto.request.ImagenDTO;
+import com.elbuensabor.entities.TipoCategoria;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -17,30 +19,36 @@ public class ArticuloManufacturadoResponseDTO {
     private Double precioVenta;
     private Boolean eliminado;
 
-    // Información de Unidad de Medida
+    // Unidad de medida
     private Long idUnidadMedida;
     private String denominacionUnidadMedida;
 
-    // Información de Categoría
+    // Categoría
     private Long idCategoria;
     private String denominacionCategoria;
     private Boolean esSubcategoria;
     private String denominacionCategoriaPadre;
+    private TipoCategoria tipoCategoria;
 
-    // Campos específicos de ArticuloManufacturado
+    // Manufacturado
     private String descripcion;
-    private Integer tiempoEstimadoEnMinutos;
     private String preparacion;
-    private Double margenGanancia;
-    private Double costoProduccion;
+    private Integer tiempoEstimadoEnMinutos;
 
-    // Detalles de la receta
+    // Receta
     private List<DetalleManufacturadoResponseDTO> detalles;
 
     // Imágenes
     private List<ImagenDTO> imagenes;
 
-    // Información calculada
-    private Boolean stockSuficiente; // Indica si hay stock de todos los ingredientes
-    private Integer cantidadMaximaPreparable; // Cantidad máxima que se puede producir con el stock actual
+    // --- CAMPOS CALCULADOS Y DE NEGOCIO (REFACTORIZADOS) ---
+
+    // Costos y Márgenes
+    private Double costoProduccion; // suma de subtotales de ingredientes
+    private Double margenGanancia; // multiplicador, ej: 1.3
+    private Double margenGananciaPorcentaje; // porcentaje, ej: 30.0
+
+    // Stock
+    private Boolean stockSuficiente; // true si se puede preparar al menos 1
+    private Integer cantidadMaximaPreparable; // cuántos se pueden preparar con el stock actual
 }

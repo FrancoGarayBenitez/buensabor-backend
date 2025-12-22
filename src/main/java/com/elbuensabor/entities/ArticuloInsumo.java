@@ -33,14 +33,10 @@ public class ArticuloInsumo extends Articulo {
     @OneToMany(mappedBy = "articuloInsumo", fetch = FetchType.LAZY)
     private List<DetalleManufacturado> detallesManufacturados = new ArrayList<>();
 
-    // Evitar borrar hijos al tocar la colección del padre
-    @OneToMany(mappedBy = "articuloInsumo", fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST,
-            CascadeType.MERGE })
+    @OneToMany(mappedBy = "articuloInsumo", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<HistoricoPrecio> historicosPrecios = new ArrayList<>();
 
-    // Idem para compras
-    @OneToMany(mappedBy = "articuloInsumo", fetch = FetchType.LAZY, cascade = { CascadeType.PERSIST,
-            CascadeType.MERGE })
+    @OneToMany(mappedBy = "articuloInsumo", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<CompraInsumo> compras = new ArrayList<>();
 
     // ==================== MÉTODOS SIMPLES ====================

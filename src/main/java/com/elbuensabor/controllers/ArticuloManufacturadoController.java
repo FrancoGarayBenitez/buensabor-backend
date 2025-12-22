@@ -4,6 +4,8 @@ import com.elbuensabor.dto.request.ArticuloManufacturadoRequestDTO;
 import com.elbuensabor.dto.response.ArticuloManufacturadoResponseDTO;
 import com.elbuensabor.services.IArticuloManufacturadoService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +18,7 @@ import java.util.List;
 @RequestMapping("/api/articulos-manufacturados")
 public class ArticuloManufacturadoController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ArticuloManufacturadoController.class);
     private final IArticuloManufacturadoService service;
 
     @Autowired
@@ -23,26 +26,29 @@ public class ArticuloManufacturadoController {
         this.service = service;
     }
 
-    // ==================== OPERACIONES CRUD BÁSICAS ====================
+    // ==================== CRUD BÁSICAS ====================
 
     @GetMapping
     public ResponseEntity<List<ArticuloManufacturadoResponseDTO>> getAll() {
-        List<ArticuloManufacturadoResponseDTO> manufacturados = service.findAll();
-        return ResponseEntity.ok(manufacturados);
+        logger.debug("📥 GET /api/articulos-manufacturados - Obteniendo todos los productos");
+        List<ArticuloManufacturadoResponseDTO> productos = service.findAll();
+        return ResponseEntity.ok(productos);
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ArticuloManufacturadoResponseDTO> getById(@PathVariable Long id) {
-        ArticuloManufacturadoResponseDTO manufacturado = service.findById(id);
-        return ResponseEntity.ok(manufacturado);
+        logger.debug("📥 GET /api/articulos-manufacturados/{} - Obteniendo producto por ID", id);
+        ArticuloManufacturadoResponseDTO producto = service.findById(id);
+        return ResponseEntity.ok(producto);
     }
 
     @PostMapping
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
     public ResponseEntity<ArticuloManufacturadoResponseDTO> create(
             @Valid @RequestBody ArticuloManufacturadoRequestDTO requestDTO) {
-        ArticuloManufacturadoResponseDTO manufacturadoCreado = service.createManufacturado(requestDTO);
-        return new ResponseEntity<>(manufacturadoCreado, HttpStatus.CREATED);
+        logger.info("📝 POST /api/articulos-manufacturados - Creando producto: {}", requestDTO.getDenominacion());
+        ArticuloManufacturadoResponseDTO created = service.create(requestDTO);
+        return new ResponseEntity<>(created, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
@@ -50,29 +56,52 @@ public class ArticuloManufacturadoController {
     public ResponseEntity<ArticuloManufacturadoResponseDTO> update(
             @PathVariable Long id,
             @Valid @RequestBody ArticuloManufacturadoRequestDTO requestDTO) {
-        ArticuloManufacturadoResponseDTO manufacturadoActualizado = service.updateManufacturado(id, requestDTO);
-        return ResponseEntity.ok(manufacturadoActualizado);
+        logger.info("📝 PUT /api/articulos-manufacturados/{} - Actualizando producto", id);
+        ArticuloManufacturadoResponseDTO updated = service.update(id, requestDTO);
+        return ResponseEntity.ok(updated);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        service.bajaLogica(id);
+        logger.info("🗑️ DELETE /api/articulos-manufacturados/{} - Dando de baja lógica a producto", id);
+        service.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    // ==================== BÚSQUEDAS ESPECÍFICAS ====================
+    // ==================== ACTIVAR / DESACTIVAR ====================
 
-    @GetMapping("/categoria/{idCategoria}")
-    public ResponseEntity<List<ArticuloManufacturadoResponseDTO>> getByCategoria(@PathVariable Long idCategoria) {
-        List<ArticuloManufacturadoResponseDTO> manufacturados = service.findByCategoria(idCategoria);
-        return ResponseEntity.ok(manufacturados);
+    @PatchMapping("/{id}/deactivate")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
+        logger.info("⛔ PATCH /api/articulos-manufacturados/{}/deactivate - Desactivando producto", id);
+        service.deactivate(id);
+        return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/activate")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<Void> activate(@PathVariable Long id) {
+        logger.info("♻️ PATCH /api/articulos-manufacturados/{}/activate - Activando producto", id);
+        service.activate(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // ==================== BÚSQUEDAS POR FILTRO ====================
 
     @GetMapping("/buscar")
     public ResponseEntity<List<ArticuloManufacturadoResponseDTO>> searchByDenominacion(
             @RequestParam String denominacion) {
-        List<ArticuloManufacturadoResponseDTO> manufacturados = service.searchByDenominacion(denominacion);
-        return ResponseEntity.ok(manufacturados);
+        logger.debug("🔍 GET /api/articulos-manufacturados/buscar?denominacion={}", denominacion);
+        List<ArticuloManufacturadoResponseDTO> productos = service.search(denominacion);
+        return ResponseEntity.ok(productos);
+    }
+
+    @GetMapping("/categoria/{idCategoria}")
+    public ResponseEntity<List<ArticuloManufacturadoResponseDTO>> getByCategoria(
+            @PathVariable Long idCategoria) {
+        logger.debug("🔍 GET /api/articulos-manufacturados/categoria/{}", idCategoria);
+        List<ArticuloManufacturadoResponseDTO> productos = service.findByCategoria(idCategoria);
+        return ResponseEntity.ok(productos);
     }
 }

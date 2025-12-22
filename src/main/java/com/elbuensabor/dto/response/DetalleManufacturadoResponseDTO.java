@@ -15,5 +15,10 @@ public class DetalleManufacturadoResponseDTO {
     private Long idArticuloInsumo;
     private String denominacionInsumo;
     private String unidadMedidaInsumo;
-    private Double costoInsumo; // precioCompra del insumo
+
+    // Precio unitario del insumo (precioCompra actual)
+    private Double precioCompraInsumo;
+
+    // Subtotal = cantidad * precioUnitarioInsumo
+    private Double subtotal;
 }
