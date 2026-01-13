@@ -1,6 +1,5 @@
 package com.elbuensabor.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,10 +11,10 @@ import lombok.NoArgsConstructor;
 public class ImagenDTO {
     private Long idImagen;
 
-    @NotBlank(message = "La denominación es obligatoria")
+    // Permitir que sea nullable para nuevas imágenes
     private String denominacion;
 
-    @NotBlank(message = "La URL es obligatoria")
+    // Permitir que sea nullable, pero validar cuando no sea null
     @Pattern(regexp = "^(https?://|/img/).+", message = "URL de imagen inválida")
     private String url;
 }

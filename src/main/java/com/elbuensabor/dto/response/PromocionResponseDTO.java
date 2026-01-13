@@ -1,6 +1,10 @@
 package com.elbuensabor.dto.response;
 
+import com.elbuensabor.dto.request.ImagenDTO;
+import com.elbuensabor.entities.EstadoPromocion;
 import com.elbuensabor.entities.TipoDescuento;
+import com.elbuensabor.entities.TipoPromocion;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,38 +17,19 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class PromocionResponseDTO {
-
-    private Long idPromocion;
+    private Long id;
     private String denominacion;
     private LocalDateTime fechaDesde;
     private LocalDateTime fechaHasta;
     private LocalTime horaDesde;
     private LocalTime horaHasta;
     private String descripcionDescuento;
+    private TipoPromocion tipoPromocion;
     private TipoDescuento tipoDescuento;
     private Double valorDescuento;
-    private Double precioPromocional;
-    private Integer cantidadMinima;
     private Boolean activo;
-
-    // Información de artículos incluidos
-    private List<ArticuloSimpleDTO> articulos;
-
-    // Estado calculado
-    private Boolean estaVigente;
-    private String estadoDescripcion;
-
-    // Información de imágenes
-    private List<String> urlsImagenes;
-
-    // DTO interno para artículos
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ArticuloSimpleDTO {
-        private Long idArticulo;
-        private String denominacion;
-        private Double precioVenta;
-        private String urlImagen;
-    }
+    private Integer cantidadMinima;
+    private EstadoPromocion estado;
+    private List<PromocionDetalleResponseDTO> detalles;
+    private List<ImagenDTO> imagenes;
 }

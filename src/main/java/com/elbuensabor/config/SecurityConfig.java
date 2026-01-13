@@ -76,7 +76,16 @@ public class SecurityConfig {
                         .requestMatchers("/static/**").permitAll()
 
                         // Endpoints de acceso PÚBLICO
-                        .requestMatchers("/api/auth/**", "/public/**", "/v3/api-docs/**", "/swagger-ui/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/public/**").permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
+
+                        // Endpoints de imágenes requieren autenticación
+                        // (pero están aquí para ser explícitos)
+                        .requestMatchers(HttpMethod.POST, "/api/imagenes/upload/**").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/imagenes/upload/**").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/imagenes/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/imagenes/**").authenticated()
 
                         // Endpoints públicos para el catálogo
                         .requestMatchers(HttpMethod.GET,
@@ -85,7 +94,7 @@ public class SecurityConfig {
                                 "/api/unidades-medida/**")
                         .permitAll()
 
-                        // CRÍTICO: Este endpoint debe ir ANTES que las reglas más restrictivas
+                        // Endpoint de perfil requiere autenticación
                         .requestMatchers("/api/perfil").authenticated()
 
                         // Endpoints específicos para clientes
@@ -97,6 +106,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/empleados/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/estadisticas/**").hasAnyAuthority("ADMIN", "COCINERO", "DELIVERY")
                         .requestMatchers("/api/articulos-insumo/**").hasAnyAuthority("ADMIN", "COCINERO")
+                        .requestMatchers("/api/articulos-manufacturado/**").hasAnyAuthority("ADMIN", "COCINERO")
+                        // ✅ NUEVO: Promociones requieren rol ADMIN
+                        .requestMatchers("/api/promociones/**").hasAuthority("ADMIN")
 
                         // WebSocket endpoints
                         .requestMatchers("/ws/**").permitAll()

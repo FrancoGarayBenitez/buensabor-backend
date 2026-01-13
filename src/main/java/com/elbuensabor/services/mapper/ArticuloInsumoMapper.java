@@ -26,7 +26,6 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Mapping(target = "costoTotalInventario", ignore = true)
     @Mapping(target = "margenGanancia", ignore = true)
     @Mapping(target = "cantidadProductosQueLoUsan", ignore = true)
-    @Mapping(target = "imagenes", ignore = true)
     ArticuloInsumoResponseDTO toDTO(ArticuloInsumo entity);
 
     // ==================== REQUEST DTO → ENTITY (CREATE) ====================
@@ -38,7 +37,7 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     // ✅ RELACIONES MANEJADAS EN SERVICE
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "detallesPromocion", ignore = true)
     @Mapping(target = "imagenes", ignore = true)
 
     // ✅ RELACIONES INVERSA DE ARTICULOINSUMO
@@ -56,7 +55,7 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     // ✅ RELACIONES MANEJADAS EN SERVICE
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "detallesPromocion", ignore = true)
     @Mapping(target = "imagenes", ignore = true)
 
     // ✅ RELACIONES INVERSA: NO SE ACTUALIZAN DIRECTAMENTE
@@ -71,7 +70,7 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Mapping(target = "idArticulo", ignore = true)
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "detallesPromocion", ignore = true)
     @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "detallesManufacturados", ignore = true)
     @Mapping(target = "historicosPrecios", ignore = true)
@@ -86,7 +85,7 @@ public interface ArticuloInsumoMapper extends BaseMapper<ArticuloInsumo, Articul
     @Mapping(target = "idArticulo", ignore = true)
     @Mapping(target = "unidadMedida", ignore = true)
     @Mapping(target = "categoria", ignore = true)
-    @Mapping(target = "promociones", ignore = true)
+    @Mapping(target = "detallesPromocion", ignore = true)
     @Mapping(target = "imagenes", ignore = true)
     @Mapping(target = "detallesManufacturados", ignore = true)
     @Mapping(target = "historicosPrecios", ignore = true)

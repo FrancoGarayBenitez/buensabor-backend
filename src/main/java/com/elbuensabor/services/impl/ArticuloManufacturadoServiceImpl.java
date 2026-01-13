@@ -9,6 +9,7 @@ import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.*;
 import com.elbuensabor.services.IArticuloManufacturadoService;
+import com.elbuensabor.services.IImagenService;
 import com.elbuensabor.services.mapper.ArticuloManufacturadoMapper;
 import com.elbuensabor.services.mapper.DetalleManufacturadoMapper;
 import org.slf4j.Logger;
@@ -40,6 +41,8 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
     private IArticuloInsumoRepository articuloInsumoRepository;
     @Autowired
     private IArticuloRepository articuloRepository;
+    @Autowired
+    private IImagenService imagenService;
 
     @Override
     @Transactional(readOnly = true)
@@ -61,6 +64,7 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
     @Transactional
     public ArticuloManufacturadoResponseDTO create(ArticuloManufacturadoRequestDTO requestDTO) {
         log.info("Creando nuevo producto manufacturado: {}", requestDTO.getDenominacion());
+        log.info("Request DTO recibido: {}", requestDTO.toString());
 
         // ✅ Unicidad GLOBAL (incluye desactivados). Si existe, informar estado.
         articuloRepository.findByDenominacionIgnoreCaseIncludingEliminado(requestDTO.getDenominacion())
@@ -76,14 +80,24 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
         validarCategoria(manufacturado.getCategoria());
         actualizarDetalles(manufacturado, requestDTO.getDetalles());
         manufacturado.actualizarCostoProduccion();
-        if (requestDTO.getPrecioVenta() == null) {
+        if (requestDTO.getPrecioVenta() == null || requestDTO.getPrecioVenta() == 0) {
             manufacturado.actualizarPrecioVenta();
         }
-        manejarImagenes(manufacturado, requestDTO.getImagenes());
 
+        // ✅ CORRECCIÓN: Reordenar las operaciones
+        // 1️⃣ Guardar la entidad principal PRIMERO para obtener un ID.
         ArticuloManufacturado saved = repository.save(manufacturado);
-        log.info("Producto {} creado con ID {}", saved.getDenominacion(), saved.getIdArticulo());
-        return enriquecerDTO(saved);
+        log.info("Producto {} pre-guardado con ID {}", saved.getDenominacion(), saved.getIdArticulo());
+
+        // 2️⃣ AHORA, manejar las imágenes, pasando la entidad YA GUARDADA (con ID).
+        manejarImagenes(saved, requestDTO.getImagenes());
+
+        // 3️⃣ Volver a guardar para persistir las asociaciones de imágenes.
+        ArticuloManufacturado finalManufacturado = repository.save(saved);
+
+        log.info("Producto {} creado y finalizado con ID {}", finalManufacturado.getDenominacion(),
+                finalManufacturado.getIdArticulo());
+        return enriquecerDTO(finalManufacturado);
     }
 
     @Override
@@ -164,11 +178,6 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
         ArticuloManufacturadoResponseDTO dto = mapper.toDTO(entity);
         dto.setStockSuficiente(entity.verificarStockSuficiente(1));
         dto.setCantidadMaximaPreparable(entity.calcularCantidadMaximaPreparable());
-        if (entity.getImagenes() != null) {
-            dto.setImagenes(entity.getImagenes().stream()
-                    .map(img -> new ImagenDTO(img.getIdImagen(), img.getDenominacion(), img.getUrl()))
-                    .collect(Collectors.toList()));
-        }
         return dto;
     }
 
@@ -194,9 +203,21 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
 
     private void actualizarDetalles(ArticuloManufacturado manufacturado,
             List<DetalleManufacturadoRequestDTO> detallesDTO) {
+
+        // ✅ LOGGING: Verificar qué lista de detalles llega a este método
+        log.info("Actualizando detalles. Recibidos {} detalles.", detallesDTO != null ? detallesDTO.size() : "null");
+
         manufacturado.getDetalles().clear();
         if (detallesDTO != null) {
             for (DetalleManufacturadoRequestDTO detalleDTO : detallesDTO) {
+                // ✅ LOGGING: Imprimir el ID del insumo que se va a buscar
+                log.info("Procesando detalle para insumo ID: {}", detalleDTO.getIdArticuloInsumo());
+
+                if (detalleDTO.getIdArticuloInsumo() == null) {
+                    log.error("Se encontró un detalle con ID de insumo nulo. Detalle: {}", detalleDTO);
+                    throw new IllegalArgumentException("Se encontró un detalle con ID de insumo nulo.");
+                }
+
                 ArticuloInsumo insumo = articuloInsumoRepository.findById(detalleDTO.getIdArticuloInsumo())
                         .orElseThrow(() -> new ResourceNotFoundException(
                                 "Insumo no encontrado con ID: " + detalleDTO.getIdArticuloInsumo()));
@@ -209,18 +230,46 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
         }
     }
 
-    private void manejarImagenes(ArticuloManufacturado manufacturado, List<ImagenDTO> imagenesDTO) {
-        if (manufacturado.getImagenes() == null)
-            manufacturado.setImagenes(new ArrayList<>());
-        manufacturado.getImagenes().clear();
-        if (imagenesDTO != null) {
-            imagenesDTO.forEach(imgDTO -> {
-                Imagen img = new Imagen();
-                img.setUrl(imgDTO.getUrl());
-                img.setDenominacion(imgDTO.getDenominacion());
-                img.setArticulo(manufacturado);
-                manufacturado.getImagenes().add(img);
-            });
+    private void manejarImagenes(Articulo articulo, List<ImagenDTO> imagenesDTO) {
+        if (articulo.getImagenes() == null) {
+            articulo.setImagenes(new ArrayList<>());
+        }
+
+        // Si viene array vacío, limpiar todas
+        if (imagenesDTO == null || imagenesDTO.isEmpty()) {
+            articulo.getImagenes().clear();
+            return;
+        }
+
+        // Recolectar IDs de imágenes existentes en el request
+        java.util.Set<Long> idsEnRequest = imagenesDTO.stream()
+                .map(ImagenDTO::getIdImagen)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 1️⃣ Eliminar imágenes que NO están en el request
+        articulo.getImagenes().removeIf(img -> !idsEnRequest.contains(img.getIdImagen()));
+
+        // 2️⃣ Crear o actualizar imágenes del request
+        for (ImagenDTO imgDTO : imagenesDTO) {
+            if (imgDTO.getIdImagen() == null) {
+                // Crear registro de imagen asociado al artículo
+                Imagen newImg = imagenService.createFromExistingUrl(
+                        imgDTO.getDenominacion(),
+                        imgDTO.getUrl(),
+                        articulo.getIdArticulo());
+                articulo.getImagenes().add(newImg);
+                log.info("✅ Nueva imagen creada y asociada: {}", imgDTO.getDenominacion());
+            } else {
+                // ✅ EXISTENTE: Actualizar si es necesario
+                articulo.getImagenes().stream()
+                        .filter(img -> img.getIdImagen().equals(imgDTO.getIdImagen()))
+                        .findFirst()
+                        .ifPresent(img -> {
+                            img.setDenominacion(imgDTO.getDenominacion());
+                            img.setUrl(imgDTO.getUrl());
+                        });
+            }
         }
     }
 }

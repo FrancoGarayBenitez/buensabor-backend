@@ -5,6 +5,7 @@ import com.elbuensabor.dto.request.ImagenDTO;
 import com.elbuensabor.dto.response.ArticuloInsumoResponseDTO;
 import com.elbuensabor.entities.ArticuloInsumo;
 import com.elbuensabor.entities.Categoria;
+import com.elbuensabor.entities.Imagen;
 import com.elbuensabor.entities.TipoCategoria;
 import com.elbuensabor.entities.UnidadMedida;
 import com.elbuensabor.exceptions.DuplicateResourceException;
@@ -16,6 +17,7 @@ import com.elbuensabor.repository.ICompraInsumoRepository;
 import com.elbuensabor.repository.IHistoricoPrecioRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import com.elbuensabor.services.IArticuloInsumoService;
+import com.elbuensabor.services.IImagenService;
 import com.elbuensabor.services.mapper.ArticuloInsumoMapper;
 
 import org.slf4j.Logger;
@@ -46,6 +48,8 @@ public class ArticuloInsumoServiceImpl extends
     private IHistoricoPrecioRepository historicoPrecioRepository;
     @Autowired
     private ICompraInsumoRepository compraInsumoRepository;
+    @Autowired
+    private IImagenService imagenService;
 
     @Autowired
     public ArticuloInsumoServiceImpl(
@@ -106,12 +110,21 @@ public class ArticuloInsumoServiceImpl extends
         entity.setHistoricosPrecios(new ArrayList<>());
         entity.setCompras(new ArrayList<>());
 
-        // 6️⃣ Guardar
+        // 6️⃣ Guardar para obtener el ID
         ArticuloInsumo saved = repository.save(entity);
-        logger.info("✅ Insumo creado exitosamente: {} (ID: {}) - Sin estado hasta primera compra",
-                saved.getDenominacion(), saved.getIdArticulo());
 
-        return enriquecerResponseDTO(saved);
+        // ✅ CORRECCIÓN: Llamar a manejarImagenes DESPUÉS de guardar para tener el ID
+        // del artículo.
+        if (Boolean.FALSE.equals(saved.getEsParaElaborar())) {
+            manejarImagenes(saved, requestDTO.getImagenes());
+        }
+
+        // 7️⃣ Volver a guardar para persistir las imágenes asociadas
+        ArticuloInsumo finalInsumo = repository.save(saved);
+        logger.info("✅ Insumo creado exitosamente: {} (ID: {})",
+                finalInsumo.getDenominacion(), finalInsumo.getIdArticulo());
+
+        return enriquecerResponseDTO(finalInsumo);
     }
 
     @Override
@@ -143,8 +156,15 @@ public class ArticuloInsumoServiceImpl extends
         // 5️⃣ Validar que categoría sea apta para insumos (INGREDIENTES o BEBIDAS)
         validarCategoriaAptaParaInsumos(entity.getCategoria());
 
-        // ✅ NO RECALCULAR ESTADO - Solo se modifica con compras
-        // entity.setEstadoStock() ← NO TOCAR
+        // ✅ NUEVO: Manejar imágenes solo para insumos de venta directa
+        if (Boolean.FALSE.equals(entity.getEsParaElaborar())) {
+            manejarImagenes(entity, requestDTO.getImagenes());
+        } else {
+            // Si cambia a "para elaborar", eliminar las imágenes
+            if (entity.getImagenes() != null) {
+                entity.getImagenes().clear();
+            }
+        }
 
         // 6️⃣ Guardar
         ArticuloInsumo updated = repository.save(entity);
@@ -335,7 +355,8 @@ public class ArticuloInsumoServiceImpl extends
      * El estado solo se calcula con compras (CompraInsumoServiceImpl)
      */
     private ArticuloInsumoResponseDTO enriquecerResponseDTO(ArticuloInsumo entity) {
-        // 1️⃣ Mapeo básico
+        // 1️⃣ Mapeo básico (Ahora incluirá las imágenes gracias a la corrección del
+        // mapper)
         ArticuloInsumoResponseDTO dto = mapper.toDTO(entity);
 
         // 2️⃣ Calcular porcentaje de stock
@@ -357,16 +378,20 @@ public class ArticuloInsumoServiceImpl extends
                         ? entity.getDetallesManufacturados().size()
                         : 0);
 
-        // 6️⃣ Mapear imágenes
-        if (entity.getImagenes() != null && !entity.getImagenes().isEmpty()) {
-            dto.setImagenes(entity.getImagenes().stream()
-                    .map(imagen -> new ImagenDTO(
-                            imagen.getIdImagen(),
-                            imagen.getDenominacion(),
-                            imagen.getUrl()))
-                    .collect(Collectors.toList()));
-        } else {
-            dto.setImagenes(new ArrayList<>());
+        // 6️⃣ Mapear imágenes - ✅ CORRECCIÓN: Esta sección ya no es necesaria si el
+        // mapper funciona.
+        // Se puede dejar por seguridad o eliminar para simplificar.
+        if (dto.getImagenes() == null) {
+            if (entity.getImagenes() != null && !entity.getImagenes().isEmpty()) {
+                dto.setImagenes(entity.getImagenes().stream()
+                        .map(imagen -> new ImagenDTO(
+                                imagen.getIdImagen(),
+                                imagen.getDenominacion(),
+                                imagen.getUrl()))
+                        .collect(Collectors.toList()));
+            } else {
+                dto.setImagenes(new ArrayList<>());
+            }
         }
 
         return dto;
@@ -397,6 +422,49 @@ public class ArticuloInsumoServiceImpl extends
         TipoCategoria tipo = categoria.getTipoCategoria();
         if (!(TipoCategoria.INGREDIENTES.equals(tipo) || TipoCategoria.BEBIDAS.equals(tipo))) {
             throw new IllegalArgumentException("La categoría debe ser de tipo INGREDIENTES o BEBIDAS");
+        }
+    }
+
+    private void manejarImagenes(ArticuloInsumo articulo, List<ImagenDTO> imagenesDTO) {
+        if (articulo.getImagenes() == null) {
+            articulo.setImagenes(new ArrayList<>());
+        }
+
+        // Si viene array vacío, limpiar todas
+        if (imagenesDTO == null || imagenesDTO.isEmpty()) {
+            articulo.getImagenes().clear();
+            return;
+        }
+
+        // Recolectar IDs de imágenes existentes en el request
+        java.util.Set<Long> idsEnRequest = imagenesDTO.stream()
+                .map(ImagenDTO::getIdImagen)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 1️⃣ Eliminar imágenes que NO están en el request
+        articulo.getImagenes().removeIf(img -> !idsEnRequest.contains(img.getIdImagen()));
+
+        // 2️⃣ Crear o actualizar imágenes del request
+        for (ImagenDTO imgDTO : imagenesDTO) {
+            if (imgDTO.getIdImagen() == null) {
+                // ✅ NUEVA: Crear registro de imagen asociado al artículo
+                Imagen newImg = imagenService.createFromExistingUrl(
+                        imgDTO.getDenominacion(),
+                        imgDTO.getUrl(),
+                        articulo.getIdArticulo());
+                articulo.getImagenes().add(newImg);
+                logger.info("✅ Nueva imagen creada y asociada: {}", imgDTO.getDenominacion());
+            } else {
+                // ✅ EXISTENTE: Actualizar si es necesario
+                articulo.getImagenes().stream()
+                        .filter(img -> img.getIdImagen().equals(imgDTO.getIdImagen()))
+                        .findFirst()
+                        .ifPresent(img -> {
+                            img.setDenominacion(imgDTO.getDenominacion());
+                            img.setUrl(imgDTO.getUrl());
+                        });
+            }
         }
     }
 }

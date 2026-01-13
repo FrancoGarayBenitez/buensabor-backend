@@ -1,39 +1,32 @@
 package com.elbuensabor.entities;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "imagen")
+@Table(name = "promocion_detalle")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class Imagen {
+@Builder
+public class PromocionDetalle {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_imagen")
-    private Long idImagen;
+    @Column(name = "id_promocion_detalle")
+    private Long idPromocionDetalle;
 
     @Column(nullable = false)
-    private String denominacion;
+    private int cantidad;
 
-    @Column(nullable = false)
-    private String url;
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_articulo")
-    @JsonIgnore
     private Articulo articulo;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_promocion")
-    @JsonIgnore
     private Promocion promocion;
-
-    @OneToOne(mappedBy = "imagen")
-    private Cliente cliente;
 }

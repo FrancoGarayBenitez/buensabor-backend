@@ -27,7 +27,8 @@ public class WebConfig implements WebMvcConfigurer {
 
         @Override
         public void addResourceHandlers(ResourceHandlerRegistry registry) {
-                // Configurar para servir imágenes desde el directorio de upload
+                // ✅ CORRECCIÓN: Configurar para servir imágenes desde el directorio de upload
+                // PERO: Esto solo debería servir archivos estáticos, no endpoints de API.
                 String uploadLocation = Paths.get(uploadDir).toAbsolutePath().toUri().toString();
 
                 logger.info("📁 Configurando servicio de imágenes:");
@@ -35,6 +36,8 @@ public class WebConfig implements WebMvcConfigurer {
                 logger.info("   - uploadLocation URI: {}", uploadLocation);
                 logger.info("   - publicImgPath: {}", publicImgPath);
 
+                // ✅ CORRECCIÓN: Solo servir archivos estáticos que existan en la carpeta,
+                // no interceptar peticiones POST/PUT a /api/imagenes/...
                 registry.addResourceHandler(publicImgPath + "**")
                                 .addResourceLocations(uploadLocation)
                                 .setCachePeriod(3600); // Cache por 1 hora

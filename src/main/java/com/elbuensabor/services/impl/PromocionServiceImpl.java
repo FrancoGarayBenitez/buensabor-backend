@@ -1,18 +1,18 @@
 package com.elbuensabor.services.impl;
 
-import com.elbuensabor.dto.request.PromocionAplicacionDTO;
+import com.elbuensabor.dto.request.ImagenDTO;
 import com.elbuensabor.dto.request.PromocionRequestDTO;
-import com.elbuensabor.dto.response.ArticuloBasicoDTO;
-import com.elbuensabor.dto.response.PromocionCalculoDTO;
-import com.elbuensabor.dto.response.PromocionCompletaDTO;
+import com.elbuensabor.dto.request.PromocionDetalleDTO;
 import com.elbuensabor.dto.response.PromocionResponseDTO;
 import com.elbuensabor.entities.Articulo;
+import com.elbuensabor.entities.Imagen;
 import com.elbuensabor.entities.Promocion;
-import com.elbuensabor.entities.SucursalEmpresa;
+import com.elbuensabor.entities.PromocionDetalle;
+import com.elbuensabor.exceptions.DuplicateResourceException;
 import com.elbuensabor.exceptions.ResourceNotFoundException;
 import com.elbuensabor.repository.IArticuloRepository;
 import com.elbuensabor.repository.IPromocionRepository;
-import com.elbuensabor.repository.ISucursalEmpresaRepository;
+import com.elbuensabor.services.IImagenService;
 import com.elbuensabor.services.IPromocionService;
 import com.elbuensabor.services.mapper.PromocionMapper;
 import org.slf4j.Logger;
@@ -21,255 +21,227 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
-public class PromocionServiceImpl extends GenericServiceImpl<Promocion, Long, PromocionResponseDTO, IPromocionRepository, PromocionMapper>
-        implements IPromocionService {
+public class PromocionServiceImpl implements IPromocionService {
 
-    private static final Logger logger = LoggerFactory.getLogger(PromocionServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(PromocionServiceImpl.class);
 
+    @Autowired
+    private IPromocionRepository repository;
+    @Autowired
+    private PromocionMapper mapper;
     @Autowired
     private IArticuloRepository articuloRepository;
-
     @Autowired
-    private ISucursalEmpresaRepository sucursalRepository;
-
-    // ✅ CONSTRUCTOR REQUERIDO POR TU GENERIC SERVICE
-    public PromocionServiceImpl(IPromocionRepository repository, PromocionMapper mapper) {
-        super(repository, mapper, Promocion.class, PromocionResponseDTO.class);
-        this.articuloRepository = articuloRepository;
-        this.sucursalRepository = sucursalRepository;
-    }
-
-    // ==================== MÉTODOS PARA CLIENTES ====================
+    private IImagenService imagenService; // ✅ Inyectar el servicio
 
     @Override
     @Transactional(readOnly = true)
-    public List<PromocionResponseDTO> findPromocionesVigentes() {
-        LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = LocalTime.now();
-
-        List<Promocion> promociones = repository.findPromocionesVigentes(ahora, horaActual);
-
-        logger.info("✅ Encontradas {} promociones vigentes", promociones.size());
-
-        return promociones.stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
+    public List<PromocionResponseDTO> findAll() {
+        log.info("Buscando todas las promociones");
+        return repository.findAll().stream().map(mapper::toDTO).collect(Collectors.toList());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<PromocionResponseDTO> findPromocionesParaArticulo(Long idArticulo) {
-        LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = LocalTime.now();
-
-        List<Promocion> promociones = repository.findPromocionesVigentesPorArticulo(
-                idArticulo, ahora, horaActual
-        );
-
-        logger.info("✅ Encontradas {} promociones para artículo ID: {}", promociones.size(), idArticulo);
-
-        return promociones.stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
+    public PromocionResponseDTO findById(Long id) {
+        log.info("Buscando promoción con ID: {}", id);
+        Promocion promocion = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada con ID: " + id));
+        return mapper.toDTO(promocion);
     }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromocionResponseDTO> findPromocionesAplicables(Long idArticulo, Long idSucursal) {
-        LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = LocalTime.now();
-
-        List<Promocion> promociones = repository.findPromocionesAplicables(
-                idArticulo, idSucursal, ahora, horaActual
-        );
-
-        logger.info("✅ Encontradas {} promociones aplicables para artículo {} en sucursal {}",
-                promociones.size(), idArticulo, idSucursal);
-
-        return promociones.stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    // ==================== MÉTODOS PARA ADMINISTRACIÓN ====================
 
     @Override
     @Transactional
-    public PromocionResponseDTO crearPromocion(PromocionRequestDTO request) {
-        logger.info("📝 Creando nueva promoción: {}", request.getDenominacion());
+    public PromocionResponseDTO create(PromocionRequestDTO requestDTO) {
+        log.info("Creando nueva promoción: {}", requestDTO.getDenominacion());
 
-        Promocion promocion = mapper.toEntity(request);
+        repository.findByDenominacionIgnoreCaseIncludingEliminado(requestDTO.getDenominacion())
+                .ifPresent(p -> {
+                    String estado = Boolean.TRUE.equals(p.getEliminado()) ? "desactivada" : "activa";
+                    throw new DuplicateResourceException("Ya existe una promoción " + estado +
+                            " con la denominación: " + requestDTO.getDenominacion());
+                });
 
-        // Asignar artículos
-        if (request.getIdsArticulos() != null && !request.getIdsArticulos().isEmpty()) {
-            List<Articulo> articulos = articuloRepository.findAllById(request.getIdsArticulos());
-            promocion.setArticulos(articulos);
-            logger.info("✅ Asignados {} artículos a la promoción", articulos.size());
+        Promocion promocion = mapper.toEntity(requestDTO);
+
+        // ✅ Guardar la promoción primero para obtener un ID
+        Promocion savedPromocion = repository.save(promocion);
+        log.info("Promoción {} pre-guardada con ID {}", savedPromocion.getDenominacion(),
+                savedPromocion.getIdPromocion());
+
+        // ✅ Asignar detalles y manejar imágenes
+        asignarDetalles(savedPromocion, requestDTO.getDetalles());
+        manejarImagenes(savedPromocion, requestDTO.getImagenes());
+
+        // ✅ Guardar de nuevo para persistir las relaciones
+        Promocion finalPromocion = repository.save(savedPromocion);
+
+        log.info("Promoción {} creada y finalizada con ID {}", finalPromocion.getDenominacion(),
+                finalPromocion.getIdPromocion());
+        return mapper.toDTO(finalPromocion);
+    }
+
+    @Override
+    @Transactional
+    public PromocionResponseDTO update(Long id, PromocionRequestDTO requestDTO) {
+        log.info("Actualizando promoción con ID: {}", id);
+
+        Promocion promocion = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada con ID: " + id));
+
+        repository.findByDenominacionIgnoreCaseAndIdNotIncludingEliminado(requestDTO.getDenominacion(), id)
+                .ifPresent(p -> {
+                    String estado = Boolean.TRUE.equals(p.getEliminado()) ? "desactivada" : "activa";
+                    throw new DuplicateResourceException("Ya existe otra promoción " + estado +
+                            " con la denominación: " + requestDTO.getDenominacion());
+                });
+
+        mapper.updateFromDTO(requestDTO, promocion);
+
+        // ✅ Usar la nueva lógica para detalles e imágenes
+        asignarDetalles(promocion, requestDTO.getDetalles());
+        manejarImagenes(promocion, requestDTO.getImagenes());
+
+        Promocion finalPromocion = repository.save(promocion);
+
+        return mapper.toDTO(finalPromocion);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        log.info("Baja lógica (DELETE) de promoción con ID: {}", id);
+        deactivate(id);
+    }
+
+    @Override
+    @Transactional
+    public void deactivate(Long id) {
+        log.info("Desactivando promoción con ID: {}", id);
+        Promocion promocion = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada con ID: " + id));
+        promocion.setEliminado(true);
+        repository.save(promocion);
+    }
+
+    @Override
+    @Transactional
+    public void activate(Long id) {
+        log.info("Activando promoción con ID: {}", id);
+        Promocion promocion = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada con ID: " + id));
+        promocion.setEliminado(false);
+        repository.save(promocion);
+    }
+
+    @Override
+    @Transactional
+    public PromocionResponseDTO toggleActivo(Long id) {
+        log.info("Cambiando estado 'activo' de la promoción con ID: {}", id);
+        Promocion promocion = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada con ID: " + id));
+        promocion.setActivo(!promocion.getActivo());
+        Promocion updated = repository.save(promocion);
+        return mapper.toDTO(updated);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PromocionResponseDTO> search(String denominacion) {
+        log.info("Buscando promociones por denominación: {}", denominacion);
+        return repository.findByDenominacionContainingIgnoreCaseAndEliminadoFalse(denominacion).stream()
+                .map(mapper::toDTO).collect(Collectors.toList());
+    }
+
+    // --- Métodos privados auxiliares ---
+
+    private void asignarDetalles(Promocion promocion, List<PromocionDetalleDTO> detallesDTO) {
+        if (detallesDTO == null || detallesDTO.isEmpty()) {
+            promocion.getDetalles().clear();
+            return;
         }
 
-        // Asignar sucursales (por ahora siempre sucursal 1)
-        SucursalEmpresa sucursal = sucursalRepository.findById(1L)
-                .orElseThrow(() -> new ResourceNotFoundException("Sucursal principal no encontrada"));
-        promocion.setSucursales(List.of(sucursal));
+        // Crear un mapa de los detalles existentes para una búsqueda eficiente
+        Map<Long, PromocionDetalle> detallesExistentes = promocion.getDetalles().stream()
+                .collect(Collectors.toMap(d -> d.getArticulo().getIdArticulo(), Function.identity()));
 
-        Promocion promocionGuardada = repository.save(promocion);
-        logger.info("✅ Promoción creada con ID: {}", promocionGuardada.getIdPromocion());
+        // Crear un conjunto de IDs de artículos del DTO para detectar eliminaciones
+        java.util.Set<Long> idsArticulosDTO = detallesDTO.stream()
+                .map(PromocionDetalleDTO::getIdArticulo)
+                .collect(Collectors.toSet());
 
-        return mapper.toDTO(promocionGuardada);
-    }
+        // 1. Eliminar detalles que ya no están en el DTO
+        promocion.getDetalles().removeIf(detalle -> !idsArticulosDTO.contains(detalle.getArticulo().getIdArticulo()));
 
-    @Override
-    @Transactional
-    public PromocionResponseDTO actualizarPromocion(Long id, PromocionRequestDTO request) {
-        Promocion promocion = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada"));
+        // 2. Actualizar detalles existentes y añadir nuevos
+        for (PromocionDetalleDTO dto : detallesDTO) {
+            Articulo articulo = articuloRepository.findById(dto.getIdArticulo())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Artículo no encontrado con ID: " + dto.getIdArticulo()));
 
-        // Actualizar campos básicos
-        mapper.updateEntityFromDTO(request, promocion);
+            PromocionDetalle detalleExistente = detallesExistentes.get(dto.getIdArticulo());
 
-        // Actualizar artículos si se especifican
-        if (request.getIdsArticulos() != null) {
-            List<Articulo> articulos = articuloRepository.findAllById(request.getIdsArticulos());
-            promocion.setArticulos(articulos);
-        }
-
-        Promocion promocionActualizada = repository.save(promocion);
-        logger.info("✅ Promoción actualizada: ID {}", id);
-
-        return mapper.toDTO(promocionActualizada);
-    }
-
-    @Override
-    @Transactional
-    public void activarPromocion(Long id) {
-        Promocion promocion = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada"));
-
-        promocion.setActivo(true);
-        repository.save(promocion);
-        logger.info("✅ Promoción activada: ID {}", id);
-    }
-
-    @Override
-    @Transactional
-    public void desactivarPromocion(Long id) {
-        Promocion promocion = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada"));
-
-        promocion.setActivo(false);
-        repository.save(promocion);
-        logger.info("✅ Promoción desactivada: ID {}", id);
-    }
-
-    // ==================== MÉTODO CLAVE: CALCULAR DESCUENTOS ====================
-
-    @Override
-    @Transactional(readOnly = true)
-    public PromocionCalculoDTO calcularDescuentosParaPedido(Long idSucursal, List<PromocionAplicacionDTO> aplicaciones) {
-        logger.info("💰 Calculando descuentos para {} aplicaciones de promociones", aplicaciones.size());
-
-        PromocionCalculoDTO calculo = new PromocionCalculoDTO();
-        calculo.setDescuentoTotal(0.0);
-        calculo.setDetallesDescuentos(new ArrayList<>());
-
-        for (PromocionAplicacionDTO aplicacion : aplicaciones) {
-            try {
-                Promocion promocion = repository.findById(aplicacion.getIdPromocion())
-                        .orElseThrow(() -> new ResourceNotFoundException("Promoción no encontrada: " + aplicacion.getIdPromocion()));
-
-                // Validar que la promoción esté vigente
-                if (!promocion.estaVigente()) {
-                    logger.warn("⚠️ Promoción {} no está vigente, se omite", promocion.getDenominacion());
-                    continue;
-                }
-
-                // Validar que aplique para el artículo
-                if (!promocion.aplicaParaArticulo(aplicacion.getIdArticulo())) {
-                    logger.warn("⚠️ Promoción {} no aplica para artículo {}", promocion.getDenominacion(), aplicacion.getIdArticulo());
-                    continue;
-                }
-
-                // Calcular descuento
-                Double descuento = promocion.calcularDescuento(aplicacion.getPrecioUnitario(), aplicacion.getCantidad());
-
-                if (descuento > 0) {
-                    calculo.setDescuentoTotal(calculo.getDescuentoTotal() + descuento);
-
-                    PromocionCalculoDTO.DetalleDescuentoDTO detalle = new PromocionCalculoDTO.DetalleDescuentoDTO();
-                    detalle.setIdPromocion(promocion.getIdPromocion());
-                    detalle.setDenominacionPromocion(promocion.getDenominacion());
-                    detalle.setIdArticulo(aplicacion.getIdArticulo());
-                    detalle.setMontoDescuento(descuento);
-                    detalle.setTipoDescuento(promocion.getTipoDescuento());
-                    detalle.setValorDescuento(promocion.getValorDescuento());
-
-                    calculo.getDetallesDescuentos().add(detalle);
-
-                    logger.info("✅ Descuento aplicado: {} - ${}", promocion.getDenominacion(), descuento);
-                }
-
-            } catch (Exception e) {
-                logger.error("❌ Error procesando promoción {}: {}", aplicacion.getIdPromocion(), e.getMessage());
+            if (detalleExistente != null) {
+                // Actualizar cantidad si el detalle ya existe
+                detalleExistente.setCantidad(dto.getCantidad());
+            } else {
+                // Crear nuevo detalle si no existe
+                PromocionDetalle nuevoDetalle = PromocionDetalle.builder()
+                        .promocion(promocion)
+                        .articulo(articulo)
+                        .cantidad(dto.getCantidad())
+                        .build();
+                promocion.getDetalles().add(nuevoDetalle);
             }
         }
-
-        logger.info("💰 Descuento total calculado: ${}", calculo.getDescuentoTotal());
-        return calculo;
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<PromocionCompletaDTO> findPromocionesVigentesCompletas() {
-        LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = LocalTime.now();
-
-        List<Promocion> promociones = repository.findPromocionesVigentes(ahora, horaActual);
-
-        logger.info("✅ Encontradas {} promociones vigentes completas", promociones.size());
-
-        return promociones.stream()
-                .map(this::convertirAPromocionCompleta)
-                .collect(Collectors.toList());
-    }
-
-    private PromocionCompletaDTO convertirAPromocionCompleta(Promocion promocion) {
-        PromocionCompletaDTO dto = new PromocionCompletaDTO();
-        dto.setIdPromocion(promocion.getIdPromocion());
-        dto.setDenominacion(promocion.getDenominacion());
-        dto.setDescripcionDescuento(promocion.getDescripcionDescuento());
-        dto.setFechaDesde(promocion.getFechaDesde());
-        dto.setFechaHasta(promocion.getFechaHasta());
-        dto.setHoraDesde(promocion.getHoraDesde());
-        dto.setHoraHasta(promocion.getHoraHasta());
-        dto.setTipoDescuento(String.valueOf(promocion.getTipoDescuento()));
-        dto.setValorDescuento(promocion.getValorDescuento());
-        dto.setActivo(promocion.getActivo());
-
-        // Convertir artículos a ArticuloBasicoDTO
-        List<ArticuloBasicoDTO> articulosDTO = promocion.getArticulos().stream()
-                .map(this::convertirAArticuloBasico)
-                .collect(Collectors.toList());
-        dto.setArticulos(articulosDTO);
-
-        return dto;
-    }
-
-    private ArticuloBasicoDTO convertirAArticuloBasico(Articulo articulo) {
-        ArticuloBasicoDTO dto = new ArticuloBasicoDTO();
-        dto.setIdArticulo(articulo.getIdArticulo());
-        dto.setDenominacion(articulo.getDenominacion());
-        dto.setPrecioVenta(articulo.getPrecioVenta());
-        // Agregar imagen principal si existe
-        if (articulo.getImagenes() != null && !articulo.getImagenes().isEmpty()) {
-            dto.setImagenUrl(articulo.getImagenes().get(0).getUrl());
+    private void manejarImagenes(Promocion promocion, List<ImagenDTO> imagenesDTO) {
+        if (promocion.getImagenes() == null) {
+            promocion.setImagenes(new ArrayList<>());
         }
-        return dto;
+
+        if (imagenesDTO == null || imagenesDTO.isEmpty()) {
+            promocion.getImagenes().clear();
+            return;
+        }
+
+        // Recolectar IDs de imágenes que vienen en el request
+        java.util.Set<Long> idsEnRequest = imagenesDTO.stream()
+                .map(ImagenDTO::getIdImagen)
+                .filter(java.util.Objects::nonNull)
+                .collect(java.util.stream.Collectors.toSet());
+
+        // 1️⃣ Eliminar imágenes que NO están en el request
+        promocion.getImagenes().removeIf(img -> !idsEnRequest.contains(img.getIdImagen()));
+
+        // 2️⃣ Crear o actualizar imágenes del request
+        for (ImagenDTO imgDTO : imagenesDTO) {
+            if (imgDTO.getIdImagen() == null) {
+                // ✅ NUEVA: Crear registro de imagen asociado a la promoción
+                Imagen newImg = imagenService.createFromExistingUrlPromocion(
+                        imgDTO.getDenominacion(),
+                        imgDTO.getUrl(),
+                        promocion.getIdPromocion());
+                promocion.getImagenes().add(newImg);
+                log.info("✅ Nueva imagen creada y asociada a promoción: {}", imgDTO.getDenominacion());
+            } else {
+                // ✅ EXISTENTE: Actualizar si es necesario
+                promocion.getImagenes().stream()
+                        .filter(img -> img.getIdImagen().equals(imgDTO.getIdImagen()))
+                        .findFirst()
+                        .ifPresent(img -> {
+                            img.setDenominacion(imgDTO.getDenominacion());
+                            img.setUrl(imgDTO.getUrl());
+                        });
+            }
+        }
     }
 }

@@ -44,19 +44,25 @@ public class Articulo {
     @OneToMany(mappedBy = "articulo", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Imagen> imagenes = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "articulos", fetch = FetchType.LAZY)
-    private List<Promocion> promociones = new ArrayList<>();
+    // Un artículo puede estar en muchos detalles de promoción.
+    @OneToMany(mappedBy = "articulo", fetch = FetchType.LAZY)
+    private List<PromocionDetalle> detallesPromocion = new ArrayList<>();
 
     // ==================== MÉTODOS SIMPLES - Lógica de Dominio ====================
 
     // Consulta de estado (necesario para reglas de negocio)
     public boolean tienePromocionVigente() {
-        return promociones.stream().anyMatch(Promocion::estaVigente);
+        // ✅ Se actualiza la lógica para navegar a través de los detalles.
+        return detallesPromocion.stream()
+                .map(PromocionDetalle::getPromocion)
+                .anyMatch(Promocion::estaVigente);
     }
 
     // Obtener promoción activa (necesario para cálculos)
     public Promocion getPromocionVigente() {
-        return promociones.stream()
+        // ✅ Se actualiza la lógica para navegar a través de los detalles.
+        return detallesPromocion.stream()
+                .map(PromocionDetalle::getPromocion)
                 .filter(Promocion::estaVigente)
                 .findFirst()
                 .orElse(null);

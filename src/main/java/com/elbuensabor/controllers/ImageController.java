@@ -1,252 +1,101 @@
 package com.elbuensabor.controllers;
 
-import com.elbuensabor.entities.Imagen;
 import com.elbuensabor.services.IImagenService;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/imagenes")
-@CrossOrigin(origins = "*")
 public class ImageController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ImageController.class);
 
     @Autowired
     private IImagenService imagenService;
 
-    @Value("${app.upload.dir:src/main/resources/static/img/}")
-    private String uploadDir;
-
-    @Value("${app.base.url:http://localhost:8080}")
-    private String baseUrl;
-
-    @Value("${app.public.img-path:/img/}")
-    private String publicImgPath;
-
-    // ==================== UPLOAD - GENÉRICO ====================
-
     /**
-     * ✅ POST /api/imagenes/upload/{entityType}
-     * Sube imagen sin entidad asociada (ej: Cliente sin ID aún, Promoción sin ID)
+     * ✅ ÚNICO ENDPOINT PARA SUBIR IMÁGENES (sin asociación inmediata)
+     * POST /api/imagenes/upload/{entityType}
+     * 
+     * Funciona para CREACIÓN y EDICIÓN de:
+     * - ArticuloInsumo (venta directa)
+     * - ArticuloManufacturado
+     * - Promocion
+     * 
+     * La asociación se hace al guardar el formulario completo.
      */
     @PostMapping("/upload/{entityType}")
     public ResponseEntity<?> uploadImage(
-            @PathVariable String entityType,
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
-        return handleUpload(entityType, null, file, denominacion);
-    }
-
-    /**
-     * ✅ POST /api/imagenes/upload/{entityType}/{entityId}
-     * Sube imagen y la asocia a una entidad (Insumo, Manufacturado)
-     */
-    @PostMapping("/upload/{entityType}/{entityId}")
-    public ResponseEntity<?> uploadImageWithEntity(
-            @PathVariable String entityType,
-            @PathVariable Long entityId,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
-        return handleUpload(entityType, entityId, file, denominacion);
-    }
-
-    // ==================== UPDATE ====================
-
-    /**
-     * ✅ PUT /api/imagenes/{idImagen}
-     * Actualiza imagen: elimina anterior + sube nueva
-     */
-    @PutMapping("/{idImagen}")
-    public ResponseEntity<?> updateImagen(
-            @PathVariable Long idImagen,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "denominacion", defaultValue = "Imagen") String denominacion) {
+            @RequestParam("denominacion") String denominacion,
+            @PathVariable String entityType) {
         try {
-            Imagen imagenActual = imagenService.findById(idImagen);
+            String imageUrl = imagenService.uploadPhysicalFileAndGetUrl(file);
 
-            // Eliminar archivo anterior
-            deletePhysicalFile(imagenActual.getUrl());
+            // ✅ CORRECCIÓN: Usar HashMap en lugar de Map.of() para permitir valores nulos
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("idImagen", null); // HashMap sí permite null
+            response.put("url", imageUrl);
+            response.put("denominacion", denominacion);
 
-            // Guardar nuevo archivo
-            String newUrl = savePhysicalFile(file);
-
-            // Actualizar registro
-            imagenActual.setUrl(newUrl);
-            imagenActual.setDenominacion(denominacion);
-            imagenService.save(imagenActual);
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "idImagen", imagenActual.getIdImagen(),
-                    "denominacion", imagenActual.getDenominacion(),
-                    "url", imagenActual.getUrl()));
+            return ResponseEntity.ok(response);
 
         } catch (Exception e) {
+            // Loguear el error para tener más detalles en el backend
+            logger.error("❌ Error en uploadImage para tipo {}: {}", entityType, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("success", false, "error", "Error interno del servidor"));
+        }
+    }
+
+    /**
+     * ✅ NUEVO: Endpoint para eliminar un archivo físico que fue subido pero no
+     * asociado.
+     * Se usa para limpiar archivos huérfanos si el usuario cancela la operación.
+     * DELETE /api/imagenes/upload
+     */
+    @DeleteMapping("/upload")
+    public ResponseEntity<?> deletePhysicalImage(@RequestBody Map<String, String> payload) {
+        String filename = payload.get("filename");
+        if (filename == null || filename.isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("success", false, "error", "El nombre del archivo es requerido."));
+        }
+
+        try {
+            imagenService.deletePhysicalFile(filename);
+            logger.info("🧹 Archivo físico eliminado por solicitud de limpieza: {}", filename);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Archivo físico eliminado correctamente."));
+        } catch (Exception e) {
+            logger.error("❌ Error al intentar eliminar el archivo físico {}: {}", filename, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "error", e.getMessage()));
         }
     }
 
-    // ==================== DELETE ====================
-
     /**
-     * ✅ DELETE /api/imagenes/{idImagen}
-     * Elimina imagen completamente (archivo + BD)
+     * Endpoint para eliminar una imagen (registro en BD + archivo físico)
      */
-    @DeleteMapping("/{idImagen}")
-    public ResponseEntity<?> deleteImagen(@PathVariable Long idImagen) {
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteImage(@PathVariable Long id) {
         try {
-            imagenService.deleteCompletely(idImagen);
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Imagen eliminada correctamente"));
+            // CORRECCIÓN: Usar deleteCompletely para borrar el archivo físico y el registro
+            // en BD
+            imagenService.deleteCompletely(id);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Imagen eliminada completamente"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("success", false, "error", e.getMessage()));
         }
-    }
-
-    // ==================== GET ====================
-
-    /**
-     * ✅ GET /api/imagenes/{entityType}/{entityId}
-     * Obtiene todas las imágenes de una entidad
-     */
-    @GetMapping("/{entityType}/{entityId}")
-    public ResponseEntity<?> getImagesByEntity(
-            @PathVariable String entityType,
-            @PathVariable Long entityId) {
-        try {
-            // TODO: ramificar por tipo si agregas Promoción/Cliente
-            // Por ahora: artículos (INSUMO/MANUFACTURADO)
-            List<Imagen> imagenes = imagenService.findByArticulo(entityId);
-            return ResponseEntity.ok(imagenes);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "No se encontraron imágenes"));
-        }
-    }
-
-    /**
-     * ✅ GET /api/imagenes/{idImagen}
-     * Obtiene una imagen por ID
-     */
-    @GetMapping("/{idImagen}")
-    public ResponseEntity<?> getImagenById(@PathVariable Long idImagen) {
-        try {
-            Imagen imagen = imagenService.findById(idImagen);
-            return ResponseEntity.ok(imagen);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Imagen no encontrada"));
-        }
-    }
-
-    // ==================== MÉTODOS AUXILIARES ====================
-
-    private ResponseEntity<?> handleUpload(String entityType, Long entityId, MultipartFile file, String denominacion) {
-        try {
-            Map<String, Object> validation = imagenService.validateImageFile(file);
-            if (!(Boolean) validation.get("valid")) {
-                return ResponseEntity.badRequest().body(Map.of(
-                        "success", false,
-                        "error", validation.get("error")));
-            }
-
-            Imagen imagen;
-
-            if (entityId != null && isArticuloType(entityType)) {
-                // Sube y asocia a artículo
-                imagen = imagenService.uploadAndCreateForArticulo(file, denominacion, entityId);
-            } else {
-                // Solo sube archivo
-                String url = savePhysicalFile(file);
-                imagen = imagenService.createFromExistingUrl(denominacion, url);
-            }
-
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "idImagen", imagen.getIdImagen(),
-                    "denominacion", imagen.getDenominacion(),
-                    "url", imagen.getUrl()));
-
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("success", false, "error", e.getMessage()));
-        }
-    }
-
-    private boolean isArticuloType(String entityType) {
-        return entityType.equalsIgnoreCase("INSUMO") ||
-                entityType.equalsIgnoreCase("MANUFACTURADO");
-    }
-
-    private String savePhysicalFile(MultipartFile file) throws IOException {
-        String fileExtension = getFileExtension(file.getOriginalFilename());
-        String uniqueFilename = generateUniqueFilename(fileExtension);
-
-        Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
-        if (!Files.exists(uploadPath)) {
-            Files.createDirectories(uploadPath);
-        }
-
-        Path filePath = uploadPath.resolve(uniqueFilename).normalize();
-        if (!filePath.startsWith(uploadPath)) {
-            throw new SecurityException("Ruta de archivo inválida");
-        }
-
-        Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-        return baseUrl + publicImgPath + uniqueFilename;
-    }
-
-    private boolean deletePhysicalFile(String imageUrl) {
-        try {
-            String filename = extractFilenameFromUrl(imageUrl);
-
-            Path uploadPath = Paths.get(uploadDir).normalize().toAbsolutePath();
-            Path filePath = uploadPath.resolve(filename).normalize();
-
-            if (!filePath.startsWith(uploadPath)) {
-                throw new SecurityException("Ruta de archivo inválida");
-            }
-
-            if (Files.exists(filePath)) {
-                Files.delete(filePath);
-                return !Files.exists(filePath);
-            }
-            return true;
-        } catch (IOException | SecurityException e) {
-            System.err.println("Error eliminando archivo: " + e.getMessage());
-            return false;
-        }
-    }
-
-    private String extractFilenameFromUrl(String url) {
-        return url.substring(url.lastIndexOf('/') + 1);
-    }
-
-    private String getFileExtension(String filename) {
-        if (filename == null || filename.lastIndexOf('.') == -1) {
-            return ".jpg";
-        }
-        return filename.substring(filename.lastIndexOf('.'));
-    }
-
-    private String generateUniqueFilename(String extension) {
-        return System.currentTimeMillis() + "_" +
-                java.util.UUID.randomUUID().toString().substring(0, 8) +
-                extension;
     }
 }

@@ -10,7 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "promocion")
+@Table(name = "promocion", indexes = {
+        @Index(name = "ix_promocion_fechas", columnList = "fecha_desde, fecha_hasta"),
+        @Index(name = "ix_promocion_eliminado", columnList = "eliminado")
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -39,6 +42,10 @@ public class Promocion {
     private String descripcionDescuento;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_promocion", nullable = false)
+    private TipoPromocion tipoPromocion = TipoPromocion.COMBO;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "tipo_descuento", nullable = false)
     private TipoDescuento tipoDescuento = TipoDescuento.PORCENTUAL;
 
@@ -51,43 +58,68 @@ public class Promocion {
     @Column(name = "cantidad_minima", nullable = false)
     private Integer cantidadMinima = 1;
 
+    @Column(nullable = false)
+    private Boolean eliminado = false;
+
     // ✅ RELACIONES
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "promocion_articulo", joinColumns = @JoinColumn(name = "id_promocion"), inverseJoinColumns = @JoinColumn(name = "id_articulo"))
-    private List<Articulo> articulos = new ArrayList<>();
+    @OneToMany(mappedBy = "promocion", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<PromocionDetalle> detalles = new ArrayList<>();
 
     @OneToMany(mappedBy = "promocion", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Imagen> imagenes = new ArrayList<>();
 
-    @ManyToMany(mappedBy = "promociones", fetch = FetchType.LAZY)
-    private List<SucursalEmpresa> sucursales = new ArrayList<>();
+    // ==================== LÓGICA DE NEGOCIO ====================
 
-    // ✅ ENUMS
-    public enum TipoDescuento {
-        PORCENTUAL,
-        MONTO_FIJO
+    /**
+     * Verifica si la promoción está actualmente en un período válido (fecha y
+     * hora).
+     * No considera el estado 'activo' o 'eliminado'.
+     * 
+     * @return true si la fecha y hora actual están dentro del rango de la
+     *         promoción.
+     */
+    public boolean estaEnPeriodoValido() {
+        LocalDateTime ahora = LocalDateTime.now();
+        LocalTime horaActual = ahora.toLocalTime();
+
+        return !ahora.isBefore(fechaDesde) && !ahora.isAfter(fechaHasta) &&
+                !horaActual.isBefore(horaDesde) && !horaActual.isAfter(horaHasta);
     }
 
-    // ✅ MÉTODOS DE UTILIDAD
+    /**
+     * Verifica si la promoción está vigente y puede ser aplicada.
+     * Considera el estado 'activo', 'eliminado' y el período de validez.
+     * 
+     * @return true si la promoción es aplicable ahora mismo.
+     */
     public boolean estaVigente() {
-        LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = LocalTime.now();
+        return this.activo && !this.eliminado && estaEnPeriodoValido();
+    }
 
-        return activo &&
-                ahora.isAfter(fechaDesde) &&
-                ahora.isBefore(fechaHasta) &&
-                horaActual.isAfter(horaDesde) &&
-                horaActual.isBefore(horaHasta);
+    /**
+     * Calcula y devuelve el estado actual de la promoción.
+     * Útil para la UI del administrador.
+     * 
+     * @return El enum EstadoPromocion correspondiente.
+     */
+    @Transient
+    public EstadoPromocion getEstado() {
+        if (!this.activo) {
+            return EstadoPromocion.INACTIVA;
+        }
+        LocalDateTime ahora = LocalDateTime.now();
+        if (ahora.isBefore(this.fechaDesde)) {
+            return EstadoPromocion.PROGRAMADA;
+        }
+        if (ahora.isAfter(this.fechaHasta)) {
+            return EstadoPromocion.EXPIRADA;
+        }
+        return EstadoPromocion.VIGENTE;
     }
 
     public boolean aplicaParaArticulo(Long idArticulo) {
-        return articulos.stream()
-                .anyMatch(articulo -> articulo.getIdArticulo().equals(idArticulo));
-    }
-
-    public boolean aplicaParaSucursal(Long idSucursal) {
-        return sucursales.stream()
-                .anyMatch(sucursal -> sucursal.getIdSucursalEmpresa().equals(idSucursal));
+        return detalles.stream()
+                .anyMatch(detalle -> detalle.getArticulo().getIdArticulo().equals(idArticulo));
     }
 
     public Double calcularDescuento(Double precioOriginal, Integer cantidad) {

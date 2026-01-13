@@ -1,5 +1,7 @@
 package com.elbuensabor.dto.request;
 
+import java.util.List;
+
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -23,6 +25,8 @@ public class ArticuloInsumoRequestDTO {
 
     @NotNull(message = "La categoría es obligatoria")
     private Long idCategoria;
+
+    private List<ImagenDTO> imagenes;
 
     // ==================== CAMPOS ESPECÍFICOS DE ARTICULOINSUMO
     // ====================
