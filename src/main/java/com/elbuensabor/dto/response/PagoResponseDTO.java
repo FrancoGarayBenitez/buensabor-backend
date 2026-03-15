@@ -1,5 +1,6 @@
 package com.elbuensabor.dto.response;
 
+import com.elbuensabor.dto.response.pedido.DetallePedidoResponse;
 import com.elbuensabor.entities.EstadoPago;
 import com.elbuensabor.entities.FormaPago;
 import lombok.AllArgsConstructor;
@@ -30,7 +31,7 @@ public class PagoResponseDTO {
     private DatosMercadoPagoDTO datosMercadoPago;
 
     // Los detalles ya incluirán sus observaciones automáticamente
-    private List<DetallePedidoResponseDTO> detalles;
+    private List<DetallePedidoResponse> detalles;
 
     @Data
     @NoArgsConstructor

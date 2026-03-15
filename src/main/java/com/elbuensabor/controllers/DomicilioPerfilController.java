@@ -75,8 +75,8 @@ public class DomicilioPerfilController {
      * Obtiene un domicilio específico del usuario autenticado
      */
     @GetMapping("/{id}")
-    public ResponseEntity<DomicilioResponseDTO> getMiDomicilio(@PathVariable Long id,
-                                                               @AuthenticationPrincipal Usuario usuarioAutenticado) {
+    public ResponseEntity<DomicilioResponseDTO> getMiDomicilio(@PathVariable("id") Long id,
+            @AuthenticationPrincipal Usuario usuarioAutenticado) {
 
         logger.debug("User {} requesting domicilio {}", usuarioAutenticado.getUsername(), id);
 
@@ -90,13 +90,14 @@ public class DomicilioPerfilController {
      */
     @PostMapping
     public ResponseEntity<DomicilioResponseDTO> crearMiDomicilio(@Valid @RequestBody DomicilioRequestDTO domicilioDTO,
-                                                                 @AuthenticationPrincipal Usuario usuarioAutenticado) {
+            @AuthenticationPrincipal Usuario usuarioAutenticado) {
 
         logger.debug("User {} creating new domicilio", usuarioAutenticado.getUsername());
 
         DomicilioResponseDTO nuevoDomicilio = domicilioPerfilService.crearMiDomicilio(usuarioAutenticado, domicilioDTO);
 
-        logger.debug("Created domicilio {} for user {}", nuevoDomicilio.getIdDomicilio(), usuarioAutenticado.getUsername());
+        logger.debug("Created domicilio {} for user {}", nuevoDomicilio.getIdDomicilio(),
+                usuarioAutenticado.getUsername());
         return ResponseEntity.status(HttpStatus.CREATED).body(nuevoDomicilio);
     }
 
@@ -105,9 +106,9 @@ public class DomicilioPerfilController {
      * Actualiza un domicilio del usuario autenticado
      */
     @PutMapping("/{id}")
-    public ResponseEntity<DomicilioResponseDTO> actualizarMiDomicilio(@PathVariable Long id,
-                                                                      @Valid @RequestBody DomicilioRequestDTO domicilioDTO,
-                                                                      @AuthenticationPrincipal Usuario usuarioAutenticado) {
+    public ResponseEntity<DomicilioResponseDTO> actualizarMiDomicilio(@PathVariable("id") Long id,
+            @Valid @RequestBody DomicilioRequestDTO domicilioDTO,
+            @AuthenticationPrincipal Usuario usuarioAutenticado) {
 
         logger.debug("User {} updating domicilio {}", usuarioAutenticado.getUsername(), id);
 
@@ -123,8 +124,8 @@ public class DomicilioPerfilController {
      * Elimina un domicilio del usuario autenticado
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminarMiDomicilio(@PathVariable Long id,
-                                                    @AuthenticationPrincipal Usuario usuarioAutenticado) {
+    public ResponseEntity<Void> eliminarMiDomicilio(@PathVariable("id") Long id,
+            @AuthenticationPrincipal Usuario usuarioAutenticado) {
 
         logger.debug("User {} deleting domicilio {}", usuarioAutenticado.getUsername(), id);
 
@@ -139,8 +140,8 @@ public class DomicilioPerfilController {
      * Marca un domicilio específico como principal
      */
     @PatchMapping("/{id}/principal")
-    public ResponseEntity<DomicilioResponseDTO> marcarComoPrincipal(@PathVariable Long id,
-                                                                    @AuthenticationPrincipal Usuario usuarioAutenticado) {
+    public ResponseEntity<DomicilioResponseDTO> marcarComoPrincipal(@PathVariable("id") Long id,
+            @AuthenticationPrincipal Usuario usuarioAutenticado) {
 
         logger.debug("User {} marking domicilio {} as principal", usuarioAutenticado.getUsername(), id);
 
@@ -166,8 +167,7 @@ public class DomicilioPerfilController {
         Map<String, Object> estadisticas = Map.of(
                 "cantidadTotal", cantidad,
                 "tienePrincipal", principal != null,
-                "domicilioPrincipal", principal != null ? principal : Map.of()
-        );
+                "domicilioPrincipal", principal != null ? principal : Map.of());
 
         return ResponseEntity.ok(estadisticas);
     }

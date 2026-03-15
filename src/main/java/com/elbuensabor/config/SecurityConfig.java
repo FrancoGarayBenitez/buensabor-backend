@@ -46,7 +46,6 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        // Adaptador que usa IAuthService para cargar el Usuario por email
         return authService::findByEmail;
     }
 
@@ -63,7 +62,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // 1. Configuración de CORS: Usa el bean inyectado de CorsConfig.java
+                // 1. Configuración de CORS
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
                 // 2. Deshabilitar CSRF para APIs REST
@@ -71,60 +70,111 @@ public class SecurityConfig {
 
                 // 3. Definir reglas de autorización de peticiones
                 .authorizeHttpRequests(auth -> auth
-                        // Recursos estáticos accesibles públicamente
-                        .requestMatchers("/img/**").permitAll()
-                        .requestMatchers("/static/**").permitAll()
+                        // ==================== ACCESO PÚBLICO ====================
+                        // Recursos estáticos
+                        .requestMatchers("/img/**", "/static/**").permitAll()
 
-                        // Endpoints de acceso PÚBLICO
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/public/**").permitAll()
+                        // Auth y documentación
+                        .requestMatchers("/api/auth/**", "/public/**").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
 
-                        // Endpoints de imágenes requieren autenticación
-                        // (pero están aquí para ser explícitos)
+                        // ✅ CATÁLOGO PÚBLICO PARA CLIENTE (sin autenticación)
+                        .requestMatchers(HttpMethod.GET, "/api/catalogo/**").permitAll()
+
+                        // Metadatos públicos (categorías, unidades de medida)
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/categorias/**",
+                                "/api/unidades-medida/**")
+                        .permitAll()
+
+                        // WebSocket
+                        .requestMatchers("/ws/**").permitAll()
+
+                        // ==================== GESTIÓN DE IMÁGENES ====================
                         .requestMatchers(HttpMethod.POST, "/api/imagenes/upload/**").authenticated()
                         .requestMatchers(HttpMethod.PUT, "/api/imagenes/upload/**").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/imagenes/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/imagenes/**").authenticated()
 
-                        // Endpoints públicos para el catálogo
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/articulos/**",
-                                "/api/categorias/**",
-                                "/api/unidades-medida/**")
-                        .permitAll()
-
-                        // Endpoint de perfil requiere autenticación
+                        // ==================== PERFIL DE USUARIO ====================
                         .requestMatchers("/api/perfil").authenticated()
 
-                        // Endpoints específicos para clientes
-                        .requestMatchers("/api/clientes/**").hasAuthority("CLIENTE")
-                        .requestMatchers("/api/pedidos/**").hasAuthority("CLIENTE")
+                        // ==================== GESTIÓN DE PEDIDOS ====================
 
-                        // Endpoints administrativos
+                        // Cliente puede crear y ver sus pedidos
+                        .requestMatchers(HttpMethod.POST, "/api/pedidos").hasAuthority("CLIENTE")
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/mis-pedidos").hasAuthority("CLIENTE")
+
+                        // ✅ FIX: El endpoint es /cancelar sin /{id}, y también CAJERO/ADMIN pueden
+                        // cancelar
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/cancelar")
+                        .hasAnyAuthority("CLIENTE", "CAJERO", "ADMIN", "COCINERO")
+
+                        // Cajero gestiona pedidos del día y confirmación de pago
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/del-dia").hasAnyAuthority("CAJERO", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/pedidos/confirmar-pago")
+                        .hasAnyAuthority("CAJERO", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/asignar-delivery")
+                        .hasAnyAuthority("CAJERO", "ADMIN")
+
+                        // Cocinero gestiona preparación
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/cocina").hasAnyAuthority("COCINERO", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/cambiar-estado")
+                        .hasAnyAuthority("ADMIN", "CAJERO", "COCINERO", "DELIVERY")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/{id}/iniciar-preparacion")
+                        .hasAnyAuthority("COCINERO", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/{id}/marcar-listo")
+                        .hasAnyAuthority("COCINERO", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/extender-tiempo")
+                        .hasAnyAuthority("COCINERO", "ADMIN")
+
+                        // Delivery gestiona entregas
+                        .requestMatchers(HttpMethod.GET, "/api/pedidos/delivery").hasAnyAuthority("DELIVERY", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/pedidos/{id}/marcar-entregado")
+                        .hasAnyAuthority("DELIVERY", "ADMIN")
+
+                        // Admin tiene acceso total a pedidos
+                        .requestMatchers("/api/pedidos/**").hasAuthority("ADMIN")
+
+                        // ==================== GESTIÓN DE CLIENTES ====================
+                        .requestMatchers("/api/clientes/**").hasAnyAuthority("CLIENTE", "ADMIN")
+
+                        // ==================== GESTIÓN ADMINISTRATIVA (SOLO ADMIN) ====================
                         .requestMatchers("/api/usuarios/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/empleados/**").hasAuthority("ADMIN")
+
+                        // ✅ PROMOCIONES: Admin gestiona, Cliente solo lee
+                        .requestMatchers(HttpMethod.GET, "/api/promociones/**").permitAll() // Público para catálogo
+                        .requestMatchers(HttpMethod.POST, "/api/promociones/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/promociones/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/promociones/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/promociones/**").hasAuthority("ADMIN")
+
+                        // Estadísticas
                         .requestMatchers("/api/estadisticas/**").hasAnyAuthority("ADMIN", "COCINERO", "DELIVERY")
+
+                        // ✅ ARTÍCULOS: Admin/Cocinero gestionan, Cliente solo lee vía /api/catalogo
+                        .requestMatchers(HttpMethod.GET, "/api/articulos/**").permitAll() // Público
+                        .requestMatchers(HttpMethod.POST, "/api/articulos/**").hasAnyAuthority("ADMIN", "COCINERO")
+                        .requestMatchers(HttpMethod.PUT, "/api/articulos/**").hasAnyAuthority("ADMIN", "COCINERO")
+                        .requestMatchers(HttpMethod.DELETE, "/api/articulos/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/articulos/**").hasAuthority("ADMIN")
+
                         .requestMatchers("/api/articulos-insumo/**").hasAnyAuthority("ADMIN", "COCINERO")
-                        .requestMatchers("/api/articulos-manufacturado/**").hasAnyAuthority("ADMIN", "COCINERO")
-                        // ✅ NUEVO: Promociones requieren rol ADMIN
-                        .requestMatchers("/api/promociones/**").hasAuthority("ADMIN")
+                        .requestMatchers("/api/articulos-manufacturados/**").hasAnyAuthority("ADMIN", "COCINERO")
 
-                        // WebSocket endpoints
-                        .requestMatchers("/ws/**").permitAll()
-
+                        // ==================== FALLBACK ====================
                         // Todas las demás solicitudes requieren autenticación
                         .anyRequest().authenticated())
 
-                // 4. Configurar la gestión de sesión como STATELESS (sin estado)
+                // 4. Configurar la gestión de sesión como STATELESS
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 // 5. Configurar el proveedor de autenticación
                 .authenticationProvider(authenticationProvider())
 
-                // 6. Añadir el filtro JWT customizado ANTES del filtro de autenticación
-                // estándar
+                // 6. Añadir el filtro JWT customizado
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

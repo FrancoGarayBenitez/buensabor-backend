@@ -36,7 +36,7 @@ public class PromocionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<PromocionResponseDTO> getById(@PathVariable Long id) {
+    public ResponseEntity<PromocionResponseDTO> getById(@PathVariable("id") Long id) {
         logger.debug("📥 GET /api/promociones/{} - Obteniendo promoción por ID", id);
         PromocionResponseDTO promocion = service.findById(id);
         return ResponseEntity.ok(promocion);
@@ -52,7 +52,7 @@ public class PromocionController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<PromocionResponseDTO> update(@PathVariable Long id,
+    public ResponseEntity<PromocionResponseDTO> update(@PathVariable("id") Long id,
             @Valid @RequestBody PromocionRequestDTO requestDTO) {
         logger.info("📝 PUT /api/promociones/{} - Actualizando promoción", id);
         PromocionResponseDTO updated = service.update(id, requestDTO);
@@ -61,7 +61,7 @@ public class PromocionController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         logger.info("🗑️ DELETE /api/promociones/{} - Dando de baja lógica a promoción", id);
         service.delete(id);
         return ResponseEntity.noContent().build();
@@ -71,7 +71,7 @@ public class PromocionController {
 
     @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
+    public ResponseEntity<Void> deactivate(@PathVariable("id") Long id) {
         logger.info("⛔ PATCH /api/promociones/{}/deactivate - Desactivando promoción (soft delete)", id);
         service.deactivate(id);
         return ResponseEntity.noContent().build();
@@ -79,7 +79,7 @@ public class PromocionController {
 
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> activate(@PathVariable Long id) {
+    public ResponseEntity<Void> activate(@PathVariable("id") Long id) {
         logger.info("♻️ PATCH /api/promociones/{}/activate - Activando promoción", id);
         service.activate(id);
         return ResponseEntity.noContent().build();
@@ -87,7 +87,7 @@ public class PromocionController {
 
     @PatchMapping("/{id}/toggle-activo")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<PromocionResponseDTO> toggleActivo(@PathVariable Long id) {
+    public ResponseEntity<PromocionResponseDTO> toggleActivo(@PathVariable("id") Long id) {
         logger.info("🔄 PATCH /api/promociones/{}/toggle-activo - Cambiando estado 'activo'", id);
         PromocionResponseDTO updated = service.toggleActivo(id);
         return ResponseEntity.ok(updated);

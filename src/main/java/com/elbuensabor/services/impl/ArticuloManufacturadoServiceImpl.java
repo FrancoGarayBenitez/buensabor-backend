@@ -272,4 +272,44 @@ public class ArticuloManufacturadoServiceImpl implements IArticuloManufacturadoS
             }
         }
     }
+
+    @Override
+    @Transactional
+    public ArticuloManufacturadoResponseDTO preparar(Long id, Integer cantidad) {
+        if (cantidad == null || cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad a preparar debe ser mayor a 0");
+        }
+
+        ArticuloManufacturado manufacturado = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Producto no encontrado con ID: " + id));
+
+        if (!manufacturado.verificarStockSuficiente(cantidad)) {
+            throw new IllegalStateException(
+                    "Stock insuficiente. Máximo preparable: " + manufacturado.calcularCantidadMaximaPreparable());
+        }
+
+        // Descontar stock de cada ingrediente
+        for (DetalleManufacturado detalle : manufacturado.getDetalles()) {
+            ArticuloInsumo insumo = detalle.getArticuloInsumo();
+            double nuevoStock = insumo.getStockActual() - (detalle.getCantidad() * cantidad);
+            insumo.setStockActual(Math.round(nuevoStock * 100.0) / 100.0);
+            actualizarEstadoStock(insumo);
+            articuloInsumoRepository.save(insumo);
+        }
+
+        return enriquecerDTO(manufacturado);
+    }
+
+    private void actualizarEstadoStock(ArticuloInsumo insumo) {
+        double porcentaje = insumo.getPorcentajeStock();
+        if (porcentaje <= 0) {
+            insumo.setEstadoStock("CRITICO");
+        } else if (porcentaje < 25) {
+            insumo.setEstadoStock("BAJO");
+        } else if (porcentaje < 75) {
+            insumo.setEstadoStock("NORMAL");
+        } else {
+            insumo.setEstadoStock("ALTO");
+        }
+    }
 }

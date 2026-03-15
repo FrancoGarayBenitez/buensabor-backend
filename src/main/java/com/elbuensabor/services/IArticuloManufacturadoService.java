@@ -65,4 +65,13 @@ public interface IArticuloManufacturadoService {
      * @return Lista de productos en esa categoría.
      */
     List<ArticuloManufacturadoResponseDTO> findByCategoria(Long idCategoria);
+
+    /**
+     * Prepara un producto manufacturado.
+     * 
+     * @param id       El ID del producto.
+     * @param cantidad La cantidad a preparar.
+     * @return El DTO del producto preparado.
+     */
+    ArticuloManufacturadoResponseDTO preparar(Long id, Integer cantidad);
 }

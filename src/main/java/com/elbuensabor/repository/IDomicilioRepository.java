@@ -29,7 +29,8 @@ public interface IDomicilioRepository extends JpaRepository<Domicilio, Long> {
      * Útil para validar que el usuario pueda editar/eliminar solo sus domicilios
      */
     @Query("SELECT d FROM Domicilio d WHERE d.idDomicilio = :domicilioId AND d.cliente.idCliente = :clienteId")
-    Optional<Domicilio> findByIdAndClienteId(@Param("domicilioId") Long domicilioId, @Param("clienteId") Long clienteId);
+    Optional<Domicilio> findByIdAndClienteId(@Param("domicilioId") Long domicilioId,
+            @Param("clienteId") Long clienteId);
 
     /**
      * Cuenta cuántos domicilios tiene un cliente
@@ -59,14 +60,10 @@ public interface IDomicilioRepository extends JpaRepository<Domicilio, Long> {
     int setPrincipal(@Param("domicilioId") Long domicilioId, @Param("clienteId") Long clienteId);
 
     /**
-     * Verifica si existe otro domicilio principal para el cliente (excluyendo uno específico)
+     * Verifica si existe otro domicilio principal para el cliente (excluyendo uno
+     * específico)
      * Útil para validaciones antes de actualizar
      */
     @Query("SELECT COUNT(d) > 0 FROM Domicilio d WHERE d.cliente.idCliente = :clienteId AND d.esPrincipal = true AND d.idDomicilio != :excludeId")
     boolean existsOtherPrincipalForCliente(@Param("clienteId") Long clienteId, @Param("excludeId") Long excludeId);
-
-    // ✅ OPCIONAL: Buscar domicilio de sucursal (donde id_cliente es NULL)
-    List<Domicilio> findByClienteIsNull();
 }
-
-

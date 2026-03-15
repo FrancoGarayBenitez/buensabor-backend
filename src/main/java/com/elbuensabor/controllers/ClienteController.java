@@ -30,7 +30,6 @@ public class ClienteController {
     private static final Logger logger = LoggerFactory.getLogger(ClienteController.class);
     private final IClienteService clienteService;
 
-
     @Autowired
     public ClienteController(IClienteService clienteService) {
         this.clienteService = clienteService;
@@ -58,8 +57,7 @@ public class ClienteController {
                     "nombreComprador", cliente.getNombre(),
                     "apellidoComprador", cliente.getApellido(),
                     "email", email,
-                    "rol", cliente.getRol() != null ? cliente.getRol() : "CLIENTE"
-            );
+                    "rol", cliente.getRol() != null ? cliente.getRol() : "CLIENTE");
 
             logger.info("✅ Cliente data retrieved successfully for user: {} - Cliente ID: {}",
                     email, cliente.getIdCliente());
@@ -74,8 +72,7 @@ public class ClienteController {
                             "error", "Cliente no encontrado",
                             "details", "No se encontró un cliente asociado con este usuario",
                             "code", "CLIENTE_NOT_FOUND",
-                            "email", email
-                    ));
+                            "email", email));
 
         } catch (Exception e) {
             String email = authentication != null ? authentication.getName() : "unknown";
@@ -85,8 +82,7 @@ public class ClienteController {
                             "error", "Error interno del servidor",
                             "details", e.getMessage(),
                             "code", "INTERNAL_ERROR",
-                            "timestamp", java.time.Instant.now().toString()
-                    ));
+                            "timestamp", java.time.Instant.now().toString()));
         }
     }
     // ==================== ENDPOINTS ADMINISTRATIVOS ====================
@@ -101,7 +97,7 @@ public class ClienteController {
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @clienteSecurityService.isOwner(authentication.name, #id)")
-    public ResponseEntity<ClienteResponseDTO> getClienteById(@PathVariable Long id) {
+    public ResponseEntity<ClienteResponseDTO> getClienteById(@PathVariable("id") Long id) {
         logger.debug("Getting cliente with ID: {}", id);
         ClienteResponseDTO cliente = clienteService.findById(id);
         return ResponseEntity.ok(cliente);
@@ -109,8 +105,8 @@ public class ClienteController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN') or @clienteSecurityService.isOwner(authentication.name, #id)")
-    public ResponseEntity<ClienteResponseDTO> updateCliente(@PathVariable Long id,
-                                                            @Valid @RequestBody ClienteResponseDTO clienteDTO) {
+    public ResponseEntity<ClienteResponseDTO> updateCliente(@PathVariable("id") Long id,
+            @Valid @RequestBody ClienteResponseDTO clienteDTO) {
         logger.debug("Updating cliente with ID: {}", id);
         ClienteResponseDTO clienteActualizado = clienteService.update(id, clienteDTO);
         return ResponseEntity.ok(clienteActualizado);
@@ -118,7 +114,7 @@ public class ClienteController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteCliente(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteCliente(@PathVariable("id") Long id) {
         logger.info("Admin deleting cliente with ID: {}", id);
         clienteService.delete(id);
         return ResponseEntity.noContent().build();

@@ -11,50 +11,52 @@ import java.util.List;
 @Repository
 public interface IArticuloManufacturadoRepository extends JpaRepository<ArticuloManufacturado, Long> {
 
-    // ==================== BÚSQUEDAS POR DENOMINACIÓN (para validaciones y
-    // búsqueda) ====================
+        // ==================== BÚSQUEDAS POR DENOMINACIÓN ====================
 
-    /**
-     * Verifica si ya existe un producto con la misma denominación.
-     * Usado para evitar duplicados al crear.
-     * 
-     * @param denominacion La denominación a verificar.
-     * @return true si existe, false si no.
-     */
-    boolean existsByDenominacion(String denominacion);
+        boolean existsByDenominacion(String denominacion);
 
-    /**
-     * Verifica si existe otro producto con la misma denominación, excluyendo el ID
-     * actual.
-     * Usado para evitar duplicados al actualizar.
-     * 
-     * @param denominacion La denominación a verificar.
-     * @param id           El ID del producto que se está actualizando.
-     * @return true si existe otro, false si no.
-     */
-    boolean existsByDenominacionAndIdArticuloNot(String denominacion, Long id);
+        boolean existsByDenominacionAndIdArticuloNot(String denominacion, Long id);
 
-    /**
-     * Busca productos cuya denominación contenga el texto de búsqueda, ignorando
-     * mayúsculas/minúsculas.
-     * 
-     * @param denominacion El término de búsqueda.
-     * @return Lista de productos que coinciden.
-     */
-    @Query("SELECT am FROM ArticuloManufacturado am WHERE LOWER(am.denominacion) LIKE LOWER(CONCAT('%', :denominacion, '%'))")
-    List<ArticuloManufacturado> findByDenominacionContainingIgnoreCase(@Param("denominacion") String denominacion);
+        @Query("SELECT am FROM ArticuloManufacturado am WHERE LOWER(am.denominacion) LIKE LOWER(CONCAT('%', :denominacion, '%'))")
+        List<ArticuloManufacturado> findByDenominacionContainingIgnoreCase(@Param("denominacion") String denominacion);
 
-    // ==================== BÚSQUEDAS POR RELACIONES ====================
+        // ==================== BÚSQUEDAS POR RELACIONES ====================
 
-    /**
-     * Busca todos los productos que pertenecen a una categoría específica.
-     * 
-     * @param idCategoria El ID de la categoría.
-     * @return Lista de productos en esa categoría.
-     */
-    List<ArticuloManufacturado> findByCategoriaIdCategoria(Long idCategoria);
+        List<ArticuloManufacturado> findByCategoriaIdCategoria(Long idCategoria);
 
-    // Contar cuántos productos manufacturados usan un insumo específico
-    @Query("SELECT COUNT(am) FROM ArticuloManufacturado am JOIN am.detalles d WHERE d.articuloInsumo.id = :idInsumo")
-    Integer countByInsumo(@Param("idInsumo") Long idInsumo);
+        @Query("SELECT COUNT(am) FROM ArticuloManufacturado am JOIN am.detalles d WHERE d.articuloInsumo.id = :idInsumo")
+        Integer countByInsumo(@Param("idInsumo") Long idInsumo);
+
+        // ==================== ✅ MÉTODOS PARA CLIENTE ====================
+
+        /**
+         * Obtiene todos los artículos manufacturados no eliminados.
+         */
+        List<ArticuloManufacturado> findByEliminadoFalse();
+
+        /**
+         * Filtra artículos manufacturados por categoría (solo activos).
+         */
+        List<ArticuloManufacturado> findByCategoriaIdCategoriaAndEliminadoFalse(Long idCategoria);
+
+        /**
+         * Busca artículos por denominación (búsqueda del cliente).
+         * Solo devuelve artículos no eliminados.
+         */
+        @Query("SELECT am FROM ArticuloManufacturado am WHERE LOWER(am.denominacion) LIKE LOWER(CONCAT('%', :denominacion, '%')) AND am.eliminado = false")
+        List<ArticuloManufacturado> findByDenominacionContainingIgnoreCaseAndEliminadoFalse(
+                        @Param("denominacion") String denominacion);
+
+        /**
+         * Obtiene artículos que tienen promociones vigentes.
+         * Útil para sección "Ofertas" del cliente.
+         */
+        @Query("SELECT DISTINCT am FROM ArticuloManufacturado am " +
+                        "JOIN am.detallesPromocion pd " +
+                        "JOIN pd.promocion p " +
+                        "WHERE am.eliminado = false " +
+                        "AND p.eliminado = false " +
+                        "AND p.activo = true " +
+                        "AND CURRENT_TIMESTAMP BETWEEN p.fechaDesde AND p.fechaHasta")
+        List<ArticuloManufacturado> findArticulosConPromocionVigente();
 }

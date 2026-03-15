@@ -75,7 +75,7 @@ public class CompraInsumoController {
      * Obtiene una compra por ID
      */
     @GetMapping("/{id}")
-    public ResponseEntity<CompraInsumoResponseDTO> getCompraById(@PathVariable Long id) {
+    public ResponseEntity<CompraInsumoResponseDTO> getCompraById(@PathVariable("id") Long id) {
         try {
             logger.info("🔍 Buscando compra ID: {}", id);
             CompraInsumo compra = compraInsumoService.getCompraById(id);
@@ -91,7 +91,7 @@ public class CompraInsumoController {
      * Obtiene todas las compras de un insumo
      */
     @GetMapping("/insumo/{idInsumo}")
-    public ResponseEntity<List<CompraInsumoResponseDTO>> getComprasByInsumoId(@PathVariable Long idInsumo) {
+    public ResponseEntity<List<CompraInsumoResponseDTO>> getComprasByInsumoId(@PathVariable("idInsumo") Long idInsumo) {
         try {
             logger.info("🔍 Buscando compras del insumo ID: {}", idInsumo);
             List<CompraInsumo> compras = compraInsumoService.getComprasByInsumoId(idInsumo);
@@ -110,7 +110,7 @@ public class CompraInsumoController {
      * Elimina una compra
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<ArticuloInsumoResponseDTO> eliminarCompra(@PathVariable Long id) {
+    public ResponseEntity<ArticuloInsumoResponseDTO> eliminarCompra(@PathVariable("id") Long id) {
         try {
             logger.info("🗑️ DELETE /api/compras-insumo/{}", id);
             Long idInsumo = compraInsumoService.eliminarCompra(id);

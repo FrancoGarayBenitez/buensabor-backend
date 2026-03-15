@@ -38,7 +38,7 @@ public class ArticuloInsumoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ArticuloInsumoResponseDTO> getById(@PathVariable Long id) {
+    public ResponseEntity<ArticuloInsumoResponseDTO> getById(@PathVariable("id") Long id) {
         logger.debug("📥 GET /api/articulos-insumo/{} - Obteniendo insumo por ID", id);
         ArticuloInsumoResponseDTO articulo = service.findById(id);
         return ResponseEntity.ok(articulo);
@@ -56,7 +56,7 @@ public class ArticuloInsumoController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
     public ResponseEntity<ArticuloInsumoResponseDTO> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody ArticuloInsumoRequestDTO requestDTO) {
         logger.info("📝 PUT /api/articulos-insumo/{} - Actualizando insumo", id);
         ArticuloInsumoResponseDTO updated = service.update(id, requestDTO);
@@ -65,7 +65,7 @@ public class ArticuloInsumoController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         logger.info("🗑️ DELETE /api/articulos-insumo/{} - Eliminando insumo", id);
         service.delete(id);
         return ResponseEntity.noContent().build();
@@ -75,7 +75,7 @@ public class ArticuloInsumoController {
 
     @GetMapping("/categoria/{idCategoria}")
     public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByCategoria(
-            @PathVariable Long idCategoria) {
+            @PathVariable("idCategoria") Long idCategoria) {
         logger.debug("🔍 GET /api/articulos-insumo/categoria/{}", idCategoria);
         List<ArticuloInsumoResponseDTO> articulos = service.findByCategoria(idCategoria);
         return ResponseEntity.ok(articulos);
@@ -83,7 +83,7 @@ public class ArticuloInsumoController {
 
     @GetMapping("/unidad-medida/{idUnidadMedida}")
     public ResponseEntity<List<ArticuloInsumoResponseDTO>> getByUnidadMedida(
-            @PathVariable Long idUnidadMedida) {
+            @PathVariable("idUnidadMedida") Long idUnidadMedida) {
         logger.debug("🔍 GET /api/articulos-insumo/unidad-medida/{}", idUnidadMedida);
         List<ArticuloInsumoResponseDTO> articulos = service.findByUnidadMedida(idUnidadMedida);
         return ResponseEntity.ok(articulos);
@@ -157,14 +157,14 @@ public class ArticuloInsumoController {
     }
 
     @GetMapping("/{id}/en-uso")
-    public ResponseEntity<Boolean> estaEnUso(@PathVariable Long id) {
+    public ResponseEntity<Boolean> estaEnUso(@PathVariable("id") Long id) {
         logger.debug("✓ GET /api/articulos-insumo/{}/en-uso", id);
         boolean enUso = service.estaEnUso(id);
         return ResponseEntity.ok(enUso);
     }
 
     @GetMapping("/{id}/productos-que-lo-usan")
-    public ResponseEntity<Integer> countProductosQueLoUsan(@PathVariable Long id) {
+    public ResponseEntity<Integer> countProductosQueLoUsan(@PathVariable("id") Long id) {
         logger.debug("✓ GET /api/articulos-insumo/{}/productos-que-lo-usan", id);
         Integer count = service.countProductosQueLoUsan(id);
         return ResponseEntity.ok(count);
@@ -172,7 +172,7 @@ public class ArticuloInsumoController {
 
     @GetMapping("/{id}/stock-disponible")
     public ResponseEntity<Boolean> tieneStockDisponible(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @RequestParam Double cantidad) {
         logger.debug("✓ GET /api/articulos-insumo/{}/stock-disponible?cantidad={}", id, cantidad);
         boolean disponible = service.tieneStockDisponible(id, cantidad);
@@ -182,7 +182,7 @@ public class ArticuloInsumoController {
     // ==================== INFORMACIÓN CALCULADA ====================
 
     @GetMapping("/{id}/informacion-stock")
-    public ResponseEntity<Map<String, Object>> getInformacionStock(@PathVariable Long id) {
+    public ResponseEntity<Map<String, Object>> getInformacionStock(@PathVariable("id") Long id) {
         logger.debug("ℹ️ GET /api/articulos-insumo/{}/informacion-stock", id);
         ArticuloInsumoResponseDTO insumo = service.findById(id);
 

@@ -36,7 +36,7 @@ public class ArticuloManufacturadoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ArticuloManufacturadoResponseDTO> getById(@PathVariable Long id) {
+    public ResponseEntity<ArticuloManufacturadoResponseDTO> getById(@PathVariable("id") Long id) {
         logger.debug("📥 GET /api/articulos-manufacturados/{} - Obteniendo producto por ID", id);
         ArticuloManufacturadoResponseDTO producto = service.findById(id);
         return ResponseEntity.ok(producto);
@@ -54,7 +54,7 @@ public class ArticuloManufacturadoController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
     public ResponseEntity<ArticuloManufacturadoResponseDTO> update(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody ArticuloManufacturadoRequestDTO requestDTO) {
         logger.info("📝 PUT /api/articulos-manufacturados/{} - Actualizando producto", id);
         ArticuloManufacturadoResponseDTO updated = service.update(id, requestDTO);
@@ -63,7 +63,7 @@ public class ArticuloManufacturadoController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable("id") Long id) {
         logger.info("🗑️ DELETE /api/articulos-manufacturados/{} - Dando de baja lógica a producto", id);
         service.delete(id);
         return ResponseEntity.noContent().build();
@@ -73,7 +73,7 @@ public class ArticuloManufacturadoController {
 
     @PatchMapping("/{id}/deactivate")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> deactivate(@PathVariable Long id) {
+    public ResponseEntity<Void> deactivate(@PathVariable("id") Long id) {
         logger.info("⛔ PATCH /api/articulos-manufacturados/{}/deactivate - Desactivando producto", id);
         service.deactivate(id);
         return ResponseEntity.noContent().build();
@@ -81,7 +81,7 @@ public class ArticuloManufacturadoController {
 
     @PatchMapping("/{id}/activate")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<Void> activate(@PathVariable Long id) {
+    public ResponseEntity<Void> activate(@PathVariable("id") Long id) {
         logger.info("♻️ PATCH /api/articulos-manufacturados/{}/activate - Activando producto", id);
         service.activate(id);
         return ResponseEntity.noContent().build();
@@ -99,9 +99,21 @@ public class ArticuloManufacturadoController {
 
     @GetMapping("/categoria/{idCategoria}")
     public ResponseEntity<List<ArticuloManufacturadoResponseDTO>> getByCategoria(
-            @PathVariable Long idCategoria) {
+            @PathVariable("idCategoria") Long idCategoria) {
         logger.debug("🔍 GET /api/articulos-manufacturados/categoria/{}", idCategoria);
         List<ArticuloManufacturadoResponseDTO> productos = service.findByCategoria(idCategoria);
         return ResponseEntity.ok(productos);
+    }
+
+    // ==================== PREPARAR ====================
+
+    @PostMapping("/{id}/preparar")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'COCINERO')")
+    public ResponseEntity<ArticuloManufacturadoResponseDTO> preparar(
+            @PathVariable("id") Long id,
+            @RequestParam(name = "cantidad", defaultValue = "1") Integer cantidad) {
+        logger.info("🍳 POST /api/articulos-manufacturados/{}/preparar?cantidad={}", id, cantidad);
+        ArticuloManufacturadoResponseDTO resultado = service.preparar(id, cantidad);
+        return ResponseEntity.ok(resultado);
     }
 }

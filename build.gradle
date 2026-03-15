@@ -23,6 +23,11 @@ repositories {
 	mavenCentral()
 }
 
+// ✅ AGREGAR ESTA CONFIGURACIÓN
+tasks.withType(JavaCompile) {
+	options.compilerArgs << '-parameters'
+}
+
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-web'

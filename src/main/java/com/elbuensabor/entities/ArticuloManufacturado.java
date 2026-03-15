@@ -129,4 +129,58 @@ public class ArticuloManufacturado extends Articulo {
                 .min()
                 .orElse(0);
     }
+
+    // ==================== LÓGICA DE PROMOCIONES ====================
+
+    /**
+     * Verifica si el artículo tiene al menos una promoción vigente.
+     * 
+     * @return true si tiene promoción vigente, false si no.
+     */
+    public boolean tienePromocionVigente() {
+        if (this.getDetallesPromocion() == null || this.getDetallesPromocion().isEmpty()) {
+            return false;
+        }
+
+        return this.getDetallesPromocion().stream()
+                .map(PromocionDetalle::getPromocion)
+                .anyMatch(Promocion::estaVigente);
+    }
+
+    /**
+     * Obtiene la primera promoción vigente del artículo.
+     * Si hay múltiples, devuelve la que tenga mayor descuento.
+     * 
+     * @return Promoción vigente o null si no hay ninguna.
+     */
+    public Promocion getPromocionVigente() {
+        if (this.getDetallesPromocion() == null || this.getDetallesPromocion().isEmpty()) {
+            return null;
+        }
+
+        return this.getDetallesPromocion().stream()
+                .map(PromocionDetalle::getPromocion)
+                .filter(Promocion::estaVigente)
+                .max((p1, p2) -> {
+                    // Comparar descuentos para devolver la mejor promoción
+                    Double desc1 = calcularDescuentoEfectivo(p1);
+                    Double desc2 = calcularDescuentoEfectivo(p2);
+                    return desc1.compareTo(desc2);
+                })
+                .orElse(null);
+    }
+
+    /**
+     * Calcula el descuento efectivo en pesos de una promoción sobre este artículo.
+     */
+    private Double calcularDescuentoEfectivo(Promocion promocion) {
+        switch (promocion.getTipoDescuento()) {
+            case PORCENTUAL:
+                return this.getPrecioVenta() * (promocion.getValorDescuento() / 100);
+            case MONTO_FIJO:
+                return promocion.getValorDescuento();
+            default:
+                return 0.0;
+        }
+    }
 }

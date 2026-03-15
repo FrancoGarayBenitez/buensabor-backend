@@ -1,78 +1,84 @@
 package com.elbuensabor.services.mapper;
 
-import com.elbuensabor.dto.request.DetallePedidoRequestDTO;
-import com.elbuensabor.dto.response.DetallePedidoResponseDTO;
+import com.elbuensabor.dto.request.pedido.DetallePedidoRequest;
+import com.elbuensabor.dto.response.pedido.DetallePedidoResponse;
 import com.elbuensabor.entities.DetallePedido;
+import com.elbuensabor.entities.PromocionDetalle;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import org.mapstruct.Mappings;
+import org.mapstruct.Named;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Mapper(componentModel = "spring")
 public interface DetallePedidoMapper {
 
-    // ==================== ENTITY → RESPONSE DTO ====================
-    @Mapping(source = "articulo.idArticulo", target = "idArticulo")
-    @Mapping(source = "articulo.denominacion", target = "denominacionArticulo")
-    @Mapping(source = "articulo.precioVenta", target = "precioUnitario")
-    @Mapping(source = "articulo.unidadMedida.denominacion", target = "unidadMedida")
-    @Mapping(target = "tiempoPreparacion", expression = "java(calcularTiempoPreparacion(entity.getArticulo()))")
-    @Mapping(source = "observaciones", target = "observaciones")
+    @Mappings({
+            @Mapping(source = "idDetallePedido", target = "idDetallePedido"),
 
-    // ✅ NUEVOS: Campos de promociones
-    @Mapping(source = "precioUnitarioOriginal", target = "precioUnitarioOriginal")
-    @Mapping(source = "descuentoPromocion", target = "descuentoPromocion")
-    @Mapping(target = "precioUnitarioFinal", expression = "java(calcularPrecioUnitarioFinal(entity))")
-    @Mapping(target = "tienePromocion", expression = "java(entity.getPromocionAplicada() != null && entity.getDescuentoPromocion() != null && entity.getDescuentoPromocion() > 0)")
-    @Mapping(target = "promocionAplicada", expression = "java(mapPromocionAplicada(entity.getPromocionAplicada()))")
-    DetallePedidoResponseDTO toDTO(DetallePedido entity);
+            @Mapping(source = "articulo.idArticulo", target = "idArticulo"),
+            @Mapping(source = "articulo.denominacion", target = "nombreArticulo"),
+            @Mapping(expression = "java(getImagenArticulo(entity))", target = "imagenArticulo"),
 
-    // ==================== REQUEST DTO → ENTITY ====================
-    @Mapping(target = "idDetallePedido", ignore = true)
-    @Mapping(target = "subtotal", ignore = true) // Se calcula en el service
-    @Mapping(target = "articulo", ignore = true) // Se asigna en el service
-    @Mapping(target = "pedido", ignore = true) // Se asigna en el service
-    @Mapping(source = "observaciones", target = "observaciones")
+            @Mapping(source = "cantidad", target = "cantidad"),
 
-    // ✅ NUEVOS: Campos de promociones (se asignan en el service)
-    @Mapping(target = "precioUnitarioOriginal", ignore = true)
-    @Mapping(target = "descuentoPromocion", ignore = true)
-    @Mapping(target = "promocionAplicada", ignore = true)
-    DetallePedido toEntity(DetallePedidoRequestDTO dto);
+            @Mapping(source = "precioUnitarioOriginal", target = "precioUnitarioOriginal"),
+            @Mapping(source = "descuentoPromocion", target = "descuentoPromocion"),
+            @Mapping(expression = "java(entity.getPrecioUnitarioFinal())", target = "precioUnitarioFinal"),
+            @Mapping(source = "subtotal", target = "subtotal"),
 
-    // ==================== MÉTODOS AUXILIARES ====================
+            // ✅ AGREGADO: idPromocion
+            @Mapping(source = "promocionAplicada.idPromocion", target = "idPromocion"),
+            @Mapping(source = "promocionAplicada.denominacion", target = "nombrePromocion"),
 
-    // ✅ TU MÉTODO EXISTENTE - MANTENIDO
-    default Integer calcularTiempoPreparacion(com.elbuensabor.entities.Articulo articulo) {
-        if (articulo instanceof com.elbuensabor.entities.ArticuloManufacturado) {
-            com.elbuensabor.entities.ArticuloManufacturado manufacturado = (com.elbuensabor.entities.ArticuloManufacturado) articulo;
-            return manufacturado.getTiempoEstimadoEnMinutos();
-        }
-        return 0; // Los insumos no tienen tiempo de preparación
+            // ✅ AGREGADO: articulosCombo desde los detalles de la promoción
+            @Mapping(source = "promocionAplicada.detalles", target = "articulosCombo", qualifiedByName = "mapArticulosCombo"),
+
+            @Mapping(source = "observaciones", target = "observaciones")
+    })
+    DetallePedidoResponse toDTO(DetallePedido entity);
+
+    @Mappings({
+            @Mapping(target = "idDetallePedido", ignore = true),
+
+            @Mapping(source = "cantidad", target = "cantidad"),
+            @Mapping(source = "observaciones", target = "observaciones"),
+
+            @Mapping(target = "subtotal", constant = "0.0"),
+            @Mapping(target = "precioUnitarioOriginal", constant = "0.0"),
+            @Mapping(target = "descuentoPromocion", constant = "0.0"),
+
+            @Mapping(target = "articulo", ignore = true),
+            @Mapping(target = "pedido", ignore = true),
+            @Mapping(target = "promocionAplicada", ignore = true)
+    })
+    DetallePedido toEntity(DetallePedidoRequest request);
+
+    // ✅ Convierte List<PromocionDetalle> → List<ArticuloComboResponse>
+    @Named("mapArticulosCombo")
+    default List<DetallePedidoResponse.ArticuloComboResponse> mapArticulosCombo(
+            List<PromocionDetalle> detalles) {
+        if (detalles == null || detalles.isEmpty())
+            return Collections.emptyList();
+        return detalles.stream()
+                .filter(pd -> pd.getArticulo() != null)
+                .map(pd -> DetallePedidoResponse.ArticuloComboResponse.builder()
+                        .idArticulo(pd.getArticulo().getIdArticulo())
+                        .denominacion(pd.getArticulo().getDenominacion())
+                        .cantidad(pd.getCantidad())
+                        .build())
+                .collect(Collectors.toList());
     }
 
-    // ✅ NUEVO: Calcular precio unitario final con descuento
-    default Double calcularPrecioUnitarioFinal(DetallePedido entity) {
-        if (entity.getPrecioUnitarioOriginal() == null || entity.getCantidad() == null || entity.getCantidad() == 0) {
-            return entity.getArticulo() != null ? entity.getArticulo().getPrecioVenta() : 0.0;
-        }
-
-        Double descuento = entity.getDescuentoPromocion() != null ? entity.getDescuentoPromocion() : 0.0;
-        return entity.getPrecioUnitarioOriginal() - (descuento / entity.getCantidad());
-    }
-
-    // ✅ NUEVO: Mapear información de promoción aplicada
-    default DetallePedidoResponseDTO.PromocionAplicadaDTO mapPromocionAplicada(
-            com.elbuensabor.entities.Promocion promocion) {
-        if (promocion == null) {
+    default String getImagenArticulo(DetallePedido entity) {
+        if (entity.getArticulo() == null ||
+                entity.getArticulo().getImagenes() == null ||
+                entity.getArticulo().getImagenes().isEmpty()) {
             return null;
         }
-
-        DetallePedidoResponseDTO.PromocionAplicadaDTO dto = new DetallePedidoResponseDTO.PromocionAplicadaDTO();
-        dto.setIdPromocion(promocion.getIdPromocion());
-        dto.setDenominacion(promocion.getDenominacion());
-        dto.setDescripcion(promocion.getDescripcionDescuento());
-        dto.setTipoDescuento(promocion.getTipoDescuento().toString());
-        dto.setValorDescuento(promocion.getValorDescuento());
-
-        return dto;
+        return entity.getArticulo().getImagenes().get(0).getUrl();
     }
 }

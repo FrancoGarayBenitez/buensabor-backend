@@ -40,7 +40,4 @@ public class Categoria {
     // Autorrelación: hijos
     @OneToMany(mappedBy = "categoriaPadre", fetch = FetchType.LAZY)
     private List<Categoria> subcategorias = new ArrayList<>();
-
-    @ManyToMany(mappedBy = "categorias", fetch = FetchType.LAZY)
-    private List<SucursalEmpresa> sucursales = new ArrayList<>();
 }

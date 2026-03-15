@@ -54,7 +54,8 @@
 // }
 
 // @GetMapping("/{id}")
-// public ResponseEntity<PagoResponseDTO> getPagoById(@PathVariable Long id) {
+// public ResponseEntity<PagoResponseDTO> getPagoById(@PathVariable("id") Long
+// id) {
 // PagoResponseDTO pago = pagoService.findById(id);
 // return ResponseEntity.ok(pago);
 // }
@@ -66,14 +67,15 @@
 // }
 
 // @PutMapping("/{id}")
-// public ResponseEntity<PagoResponseDTO> updatePago(@PathVariable Long id,
+// public ResponseEntity<PagoResponseDTO> updatePago(@PathVariable("id") Long
+// id,
 // @Valid @RequestBody PagoResponseDTO pagoDTO) {
 // PagoResponseDTO pagoActualizado = pagoService.update(id, pagoDTO);
 // return ResponseEntity.ok(pagoActualizado);
 // }
 
 // @DeleteMapping("/{id}")
-// public ResponseEntity<Void> deletePago(@PathVariable Long id) {
+// public ResponseEntity<Void> deletePago(@PathVariable("id") Long id) {
 // pagoService.delete(id);
 // return ResponseEntity.noContent().build();
 // }
@@ -101,7 +103,7 @@
 
 // @PutMapping("/{id}/estado")
 // public ResponseEntity<PagoResponseDTO> actualizarEstadoPago(
-// @PathVariable Long id,
+// @PathVariable("id") Long id,
 // @RequestBody Map<String, EstadoPago> request) {
 // EstadoPago nuevoEstado = request.get("estado");
 // PagoResponseDTO pago = pagoService.actualizarEstadoPago(id, nuevoEstado);
@@ -111,7 +113,7 @@
 // @PostMapping("/{id}/crear-preferencia-mp")
 // public ResponseEntity<MercadoPagoPreferenceResponseDTO>
 // crearPreferenciaMercadoPago(
-// @PathVariable Long id,
+// @PathVariable("id") Long id,
 // @RequestBody MercadoPagoPreferenceDTO preferenceDTO) {
 // try {
 // // Agregar referencia externa con el ID del pago
@@ -151,7 +153,8 @@
 // }
 
 // @PutMapping("/{id}/cancelar")
-// public ResponseEntity<PagoResponseDTO> cancelarPago(@PathVariable Long id) {
+// public ResponseEntity<PagoResponseDTO> cancelarPago(@PathVariable("id") Long
+// id) {
 // PagoResponseDTO pago = pagoService.cancelarPago(id);
 // return ResponseEntity.ok(pago);
 // }

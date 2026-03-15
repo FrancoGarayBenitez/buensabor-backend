@@ -1,39 +1,114 @@
-// package com.elbuensabor.services;
+package com.elbuensabor.services;
 
-// import com.elbuensabor.dto.request.PedidoRequestDTO;
-// import com.elbuensabor.dto.response.PedidoResponseDTO;
-// import com.elbuensabor.dto.response.FacturaResponseDTO;
-// import java.util.List;
+import com.elbuensabor.dto.request.pedido.*;
+import com.elbuensabor.dto.response.pedido.*;
+import com.elbuensabor.entities.Usuario;
 
-// public interface IPedidoService {
+import java.time.LocalDate;
+import java.util.List;
 
-// // CRUD básico
-// PedidoResponseDTO crearPedido(PedidoRequestDTO pedidoRequest);
-// PedidoResponseDTO findById(Long id);
-// List<PedidoResponseDTO> findAll();
-// List<PedidoResponseDTO> findByCliente(Long idCliente);
+public interface IPedidoService {
 
-// // Cambios de estado
-// PedidoResponseDTO confirmarPedido(Long id);
-// PedidoResponseDTO marcarEnPreparacion(Long id);
-// PedidoResponseDTO marcarListo(Long id);
-// PedidoResponseDTO marcarEntregado(Long id);
-// PedidoResponseDTO cancelarPedido(Long id);
+    // ==================== CREACIÓN DE PEDIDOS ====================
 
-// // Validaciones y cálculos
-// Boolean validarStockDisponible(PedidoRequestDTO pedidoRequest);
-// Double calcularTotal(PedidoRequestDTO pedidoRequest);
-// Integer calcularTiempoEstimado(PedidoRequestDTO pedidoRequest);
+    /**
+     * Crea un nuevo pedido (Usuario CLIENTE autenticado)
+     */
+    PedidoClienteResponse crearPedido(CrearPedidoRequest request, Usuario usuarioAutenticado);
 
-// // Filtros por estado
-// List<PedidoResponseDTO> findPedidosPendientes();
-// List<PedidoResponseDTO> findPedidosEnPreparacion();
-// List<PedidoResponseDTO> findPedidosListosParaEntrega();
+    // ==================== CONSULTAS POR ROL ====================
 
-// List<PedidoResponseDTO> findPedidosListos();
-// List<PedidoResponseDTO> findPedidosListosParaRetiro();
+    /**
+     * Obtiene todos los pedidos (ADMIN)
+     */
+    List<PedidoResponse> listarTodosPedidos();
 
-// // Nuevo método para obtener factura del pedido
-// FacturaResponseDTO getFacturaPedido(Long pedidoId);
+    /**
+     * Obtiene pedidos filtrados por estado (ADMIN/CAJERO)
+     */
+    List<PedidoResponse> listarPedidosPorEstado(String estado);
 
-// }
+    /**
+     * Obtiene pedidos del día actual (CAJERO)
+     */
+    List<PedidoCajeroResponse> listarPedidosDelDia();
+
+    /**
+     * Obtiene pedidos de una fecha específica (ADMIN/CAJERO)
+     */
+    List<PedidoResponse> listarPedidosPorFecha(LocalDate fecha);
+
+    /**
+     * Obtiene pedidos en preparación o pendientes (COCINERO)
+     */
+    List<PedidoCocineroResponse> listarPedidosCocina();
+
+    /**
+     * Obtiene pedidos listos para entregar (DELIVERY)
+     */
+    List<PedidoDeliveryResponse> listarPedidosDelivery();
+
+    /**
+     * Obtiene pedidos de un cliente específico (CLIENTE)
+     */
+    List<PedidoClienteResponse> listarPedidosCliente(Long idCliente);
+
+    /**
+     * Obtiene un pedido por ID según el rol del usuario
+     */
+    Object obtenerPedidoPorId(Long id, Usuario usuarioAutenticado);
+
+    // ==================== GESTIÓN DE ESTADOS ====================
+
+    /**
+     * Confirma el pago en efectivo (CAJERO/ADMIN)
+     */
+    PedidoResponse confirmarPago(ConfirmarPagoRequest request, Usuario usuarioAutenticado);
+
+    /**
+     * Cambia el estado del pedido (según permisos del rol)
+     */
+    Object cambiarEstado(CambiarEstadoPedidoRequest request, Usuario usuarioAutenticado);
+
+    /**
+     * Cancela un pedido (CLIENTE/CAJERO/ADMIN)
+     */
+    Object cancelarPedido(CancelarPedidoRequest request, Usuario usuarioAutenticado);
+
+    /**
+     * Inicia la preparación del pedido (COCINERO - automático al recibir pedido
+     * confirmado)
+     */
+    PedidoCocineroResponse iniciarPreparacion(Long idPedido);
+
+    /**
+     * Marca el pedido como listo (COCINERO)
+     */
+    PedidoCocineroResponse marcarListo(Long idPedido);
+
+    /**
+     * Marca el pedido como entregado (DELIVERY)
+     */
+    PedidoDeliveryResponse marcarEntregado(Long idPedido, Usuario usuarioDelivery);
+
+    // ==================== GESTIÓN DE TIEMPOS ====================
+
+    /**
+     * Extiende el tiempo de preparación (COCINERO)
+     */
+    PedidoCocineroResponse extenderTiempo(ExtenderTiempoRequest request);
+
+    // ==================== ASIGNACIÓN DE DELIVERY ====================
+
+    /**
+     * Asigna un delivery al pedido (CAJERO/ADMIN)
+     */
+    PedidoResponse asignarDelivery(AsignarDeliveryRequest request, Usuario usuarioAutenticado);
+
+    // ==================== VALIDACIONES ====================
+
+    /**
+     * Verifica si un pedido pertenece a un cliente
+     */
+    boolean pedidoPerteneceACliente(Long idPedido, Long idCliente);
+}

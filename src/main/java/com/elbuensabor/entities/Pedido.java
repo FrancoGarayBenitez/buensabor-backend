@@ -44,9 +44,51 @@ public class Pedido {
     @Column(name = "tipo_envio", nullable = false)
     private TipoEnvio tipoEnvio;
 
-    // ✅ NUEVO CAMPO: Observaciones generales del pedido
     @Column(name = "observaciones", columnDefinition = "TEXT")
     private String observaciones;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "forma_pago", nullable = false)
+    private FormaPago formaPago;
+
+    @Column(name = "pago_confirmado", nullable = false)
+    private Boolean pagoConfirmado = false;
+
+    @Column(name = "fecha_confirmacion_pago")
+    private LocalDateTime fechaConfirmacionPago;
+
+    @ManyToOne
+    @JoinColumn(name = "id_usuario_confirma_pago")
+    private Usuario usuarioConfirmaPago; // Cajero que confirma efectivo
+
+    @Column(name = "codigo_mp")
+    private String codigoMercadoPago; // ID de transacción de MercadoPago
+
+    @Column(name = "fecha_inicio_preparacion")
+    private LocalDateTime fechaInicioPreparacion;
+
+    @Column(name = "fecha_listo")
+    private LocalDateTime fechaListo;
+
+    @Column(name = "fecha_entregado")
+    private LocalDateTime fechaEntregado;
+
+    @Column(name = "fecha_cancelado")
+    private LocalDateTime fechaCancelado;
+
+    @Column(name = "motivo_cancelacion", columnDefinition = "TEXT")
+    private String motivoCancelacion;
+
+    @ManyToOne
+    @JoinColumn(name = "id_usuario_cancela")
+    private Usuario usuarioCancela; // Cliente, Cajero o Admin que cancela
+
+    @ManyToOne
+    @JoinColumn(name = "id_usuario_delivery")
+    private Usuario usuarioDelivery; // Usuario con rol DELIVERY asignado
+
+    @Column(name = "tiempo_extension_minutos")
+    private Integer tiempoExtensionMinutos = 0;
 
     @ManyToOne
     @JoinColumn(name = "id_cliente", nullable = false)
@@ -56,40 +98,67 @@ public class Pedido {
     @JoinColumn(name = "id_domicilio")
     private Domicilio domicilio;
 
-    @ManyToOne
-    @JoinColumn(name = "id_sucursal", nullable = false)
-    private SucursalEmpresa sucursal;
-
-    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DetallePedido> detalles = new ArrayList<>();
 
-    // ✅ SOLUCIÓN DEFINITIVA: Ignorar factura en JSON
     @OneToOne(mappedBy = "pedido", cascade = CascadeType.ALL)
-    @JsonIgnore  // ✅ Evita recursión - la factura se maneja por separado
+    @JsonIgnore
     private Factura factura;
 
-    // ✅ toString() personalizado SIN referencias circulares
+    // ✅ MÉTODOS DE NEGOCIO SIMPLES
+
+    public boolean puedeSerCancelado() {
+        return estado != Estado.ENTREGADO && estado != Estado.CANCELADO;
+    }
+
+    public boolean requiereConfirmacionPago() {
+        return formaPago == FormaPago.EFECTIVO && !pagoConfirmado;
+    }
+
+    public boolean puedeIniciarPreparacion() {
+        return estado == Estado.PENDIENTE &&
+                (formaPago == FormaPago.MERCADO_PAGO || pagoConfirmado);
+    }
+
+    public boolean puedeMarcarListo() {
+        return estado == Estado.PREPARACION;
+    }
+
+    public boolean puedeEntregarse() {
+        return estado == Estado.LISTO;
+    }
+
+    public boolean estaRetrasado() {
+        if (estado != Estado.PREPARACION || horaEstimadaFinalizacion == null) {
+            return false;
+        }
+        return LocalTime.now().isAfter(horaEstimadaFinalizacion);
+    }
+
+    public Double getTotalDescuentos() {
+        return detalles.stream()
+                .mapToDouble(DetallePedido::getDescuentoPromocion)
+                .sum();
+    }
+
     @Override
     public String toString() {
         return "Pedido{" +
                 "idPedido=" + idPedido +
                 ", fecha=" + fecha +
-                ", horaEstimadaFinalizacion=" + horaEstimadaFinalizacion +
-                ", total=" + total +
-                ", totalCosto=" + totalCosto +
                 ", estado=" + estado +
-                ", tipoEnvio=" + tipoEnvio +
-                ", clienteId=" + (cliente != null ? cliente.getIdCliente() : null) +
-                ", sucursalId=" + (sucursal != null ? sucursal.getIdSucursalEmpresa() : null) +
-                ", detallesCount=" + (detalles != null ? detalles.size() : 0) +
+                ", formaPago=" + formaPago +
+                ", pagoConfirmado=" + pagoConfirmado +
+                ", total=" + total +
                 '}';
     }
 
-    // ✅ equals() y hashCode() seguros
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Pedido)) return false;
+        if (this == o)
+            return true;
+        if (!(o instanceof Pedido))
+            return false;
         Pedido pedido = (Pedido) o;
         return idPedido != null && idPedido.equals(pedido.idPedido);
     }

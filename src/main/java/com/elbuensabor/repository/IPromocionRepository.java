@@ -12,52 +12,87 @@ import java.util.Optional;
 @Repository
 public interface IPromocionRepository extends JpaRepository<Promocion, Long> {
 
-    // ==================== BÚSQUEDAS POR DENOMINACIÓN (para validaciones y
-    // búsqueda) ====================
+        // ==================== MÉTODOS EXISTENTES ====================
 
-    /**
-     * Busca una promoción por su denominación, ignorando mayúsculas/minúsculas,
-     * incluyendo eliminadas.
-     * Usado para validar duplicados al crear.
-     * 
-     * @param denominacion La denominación a buscar.
-     * @return Un Optional que contiene la promoción si se encuentra.
-     */
-    @Query("SELECT p FROM Promocion p WHERE lower(p.denominacion) = lower(:denominacion)")
-    Optional<Promocion> findByDenominacionIgnoreCaseIncludingEliminado(@Param("denominacion") String denominacion);
+        List<Promocion> findByEliminadoFalse();
 
-    /**
-     * Busca una promoción por su denominación, ignorando mayúsculas/minúsculas y
-     * excluyendo un ID, incluyendo eliminadas.
-     * Usado para validar duplicados al actualizar.
-     * 
-     * @param denominacion La denominación a buscar.
-     * @param id           El ID de la promoción a excluir.
-     * @return Un Optional que contiene la promoción si se encuentra.
-     */
-    @Query("SELECT p FROM Promocion p WHERE lower(p.denominacion) = lower(:denominacion) AND p.idPromocion <> :id")
-    Optional<Promocion> findByDenominacionIgnoreCaseAndIdNotIncludingEliminado(
-            @Param("denominacion") String denominacion, @Param("id") Long id);
+        // ==================== QUERIES DIVIDIDAS (evita MultipleBagFetchException)
+        // ====================
 
-    /**
-     * Busca promociones cuya denominación contenga el texto de búsqueda, ignorando
-     * mayúsculas/minúsculas.
-     * Solo devuelve promociones no eliminadas.
-     * 
-     * @param denominacion El término de búsqueda.
-     * @return Lista de promociones que coinciden.
-     */
-    List<Promocion> findByDenominacionContainingIgnoreCaseAndEliminadoFalse(String denominacion);
+        /**
+         * ✅ Query 1: Carga promociones con sus detalles y artículos
+         * NO incluye imágenes para evitar MultipleBagFetchException
+         */
+        @Query("SELECT DISTINCT p FROM Promocion p " +
+                        "LEFT JOIN FETCH p.detalles d " +
+                        "LEFT JOIN FETCH d.articulo a " +
+                        "LEFT JOIN FETCH a.categoria " +
+                        "WHERE p.eliminado = false AND p.activo = true")
+        List<Promocion> findAllVigentesConDetalles();
 
-    // ==================== SOBREESCRITURA DE MÉTODOS JPA PARA FILTRAR ELIMINADOS
-    // ====================
+        /**
+         * ✅ Query 2: Carga las imágenes de las promociones
+         * Se ejecuta después de la primera query
+         */
+        @Query("SELECT DISTINCT p FROM Promocion p " +
+                        "LEFT JOIN FETCH p.imagenes " +
+                        "WHERE p IN :promociones")
+        List<Promocion> fetchImagenesPromocion(@Param("promociones") List<Promocion> promociones);
 
-    /**
-     * Busca todas las promociones que no han sido eliminadas lógicamente.
-     * 
-     * @return Lista de promociones activas.
-     */
-    @Override
-    @Query("SELECT p FROM Promocion p WHERE p.eliminado = false")
-    List<Promocion> findAll();
+        /**
+         * ✅ Query 3: Carga las imágenes de los artículos
+         */
+        @Query("SELECT DISTINCT a FROM Articulo a " +
+                        "LEFT JOIN FETCH a.imagenes " +
+                        "WHERE a IN (SELECT d.articulo FROM PromocionDetalle d WHERE d.promocion IN :promociones)")
+        List<com.elbuensabor.entities.Articulo> fetchImagenesArticulos(
+                        @Param("promociones") List<Promocion> promociones);
+
+        /**
+         * ✅ Obtiene una promoción específica con detalles (sin imágenes)
+         */
+        @Query("SELECT p FROM Promocion p " +
+                        "LEFT JOIN FETCH p.detalles d " +
+                        "LEFT JOIN FETCH d.articulo a " +
+                        "LEFT JOIN FETCH a.categoria " +
+                        "WHERE p.idPromocion = :id AND p.eliminado = false")
+        Optional<Promocion> findByIdConDetalles(@Param("id") Long id);
+
+        /**
+         * ✅ Carga imágenes de una promoción específica
+         */
+        @Query("SELECT p FROM Promocion p " +
+                        "LEFT JOIN FETCH p.imagenes " +
+                        "WHERE p.idPromocion = :id")
+        Optional<Promocion> fetchImagenesPorId(@Param("id") Long id);
+
+        // ==================== OTROS MÉTODOS EXISTENTES ====================
+
+        @Query("SELECT p FROM Promocion p WHERE lower(p.denominacion) = lower(:denominacion)")
+        Optional<Promocion> findByDenominacionIgnoreCaseIncludingEliminado(@Param("denominacion") String denominacion);
+
+        @Query("SELECT p FROM Promocion p WHERE lower(p.denominacion) = lower(:denominacion) AND p.idPromocion <> :id")
+        Optional<Promocion> findByDenominacionIgnoreCaseAndIdNotIncludingEliminado(
+                        @Param("denominacion") String denominacion, @Param("id") Long id);
+
+        List<Promocion> findByDenominacionContainingIgnoreCaseAndEliminadoFalse(String denominacion);
+
+        @Override
+        @Query("SELECT p FROM Promocion p WHERE p.eliminado = false")
+        List<Promocion> findAll();
+
+        List<Promocion> findByEliminadoFalseAndActivoTrue();
+
+        @Query("SELECT p FROM Promocion p WHERE p.eliminado = false " +
+                        "AND p.activo = true " +
+                        "AND CURRENT_TIMESTAMP BETWEEN p.fechaDesde AND p.fechaHasta")
+        List<Promocion> findPromocionesVigentes();
+
+        @Query("SELECT COUNT(p) > 0 FROM Promocion p " +
+                        "JOIN p.detalles pd " +
+                        "WHERE pd.articulo.idArticulo = :idArticulo " +
+                        "AND p.eliminado = false " +
+                        "AND p.activo = true " +
+                        "AND CURRENT_TIMESTAMP BETWEEN p.fechaDesde AND p.fechaHasta")
+        boolean articuloTienePromocionVigente(@Param("idArticulo") Long idArticulo);
 }

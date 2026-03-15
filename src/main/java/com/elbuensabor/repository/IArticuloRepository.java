@@ -41,4 +41,43 @@ public interface IArticuloRepository extends JpaRepository<Articulo, Long> {
     Optional<Articulo> findByDenominacionIgnoreCaseAndIdNotIncludingEliminado(
             @Param("denominacion") String denominacion,
             @Param("excludeId") Long excludeId);
+
+    /**
+     * ✅ Todos los artículos disponibles para el catálogo:
+     * - ArticuloManufacturado: activos y no eliminados
+     * - ArticuloInsumo: esParaElaborar = false (venta directa), no eliminados
+     */
+    @Query("SELECT a FROM Articulo a " +
+            "WHERE a.eliminado = false " +
+            "AND (" +
+            "  TYPE(a) = ArticuloManufacturado " +
+            "  OR (TYPE(a) = ArticuloInsumo AND a.esParaElaborar = false)" +
+            ")")
+    List<Articulo> findDisponiblesParaCatalogo();
+
+    /**
+     * ✅ Filtra por categoría incluyendo ambos tipos.
+     */
+    @Query("SELECT a FROM Articulo a " +
+            "WHERE a.eliminado = false " +
+            "AND a.categoria.idCategoria = :idCategoria " +
+            "AND (" +
+            "  TYPE(a) = ArticuloManufacturado " +
+            "  OR (TYPE(a) = ArticuloInsumo AND a.esParaElaborar = false)" +
+            ")")
+    List<Articulo> findDisponiblesParaCatalogoPorCategoria(
+            @Param("idCategoria") Long idCategoria);
+
+    /**
+     * ✅ Búsqueda por nombre incluyendo ambos tipos.
+     */
+    @Query("SELECT a FROM Articulo a " +
+            "WHERE a.eliminado = false " +
+            "AND LOWER(a.denominacion) LIKE LOWER(CONCAT('%', :query, '%')) " +
+            "AND (" +
+            "  TYPE(a) = ArticuloManufacturado " +
+            "  OR (TYPE(a) = ArticuloInsumo AND a.esParaElaborar = false)" +
+            ")")
+    List<Articulo> findDisponiblesParaCatalogoPorNombre(
+            @Param("query") String query);
 }

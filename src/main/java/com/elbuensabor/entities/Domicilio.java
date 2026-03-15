@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name="domicilio")
+@Table(name = "domicilio")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -17,7 +17,7 @@ public class Domicilio {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name="id_domicilio")
+    @Column(name = "id_domicilio")
     private Long idDomicilio;
 
     @Column(nullable = false)
@@ -34,9 +34,6 @@ public class Domicilio {
 
     @Column(name = "es_principal", nullable = false)
     private Boolean esPrincipal = false;
-
-    @OneToOne(mappedBy = "domicilio")
-    private SucursalEmpresa sucursalEmpresa;
 
     @OneToMany(mappedBy = "domicilio", cascade = CascadeType.ALL)
     private List<Pedido> pedidos = new ArrayList<>();

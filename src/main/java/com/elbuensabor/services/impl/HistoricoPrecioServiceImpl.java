@@ -29,14 +29,18 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
         @Override
         @Transactional(readOnly = true)
         public List<HistoricoPrecioDTO> getHistorialByArticulo(Long idArticulo) {
-                return historicoPrecioRepository.findByArticuloOrderByFechaDesc(idArticulo)
-                                .stream()
+                logger.debug("🔍 Consultando historial para artículo {}", idArticulo);
+                List<HistoricoPrecio> historicos = historicoPrecioRepository.findByArticuloOrderByFechaDesc(idArticulo);
+                logger.debug("📊 Encontrados {} registros históricos", historicos.size());
+
+                return historicos.stream()
                                 .map(this::toDTO)
                                 .collect(Collectors.toList());
         }
 
         @Transactional(readOnly = true)
         public List<HistoricoPrecioDTO> getLastNPrecios(Long idArticulo, int limit) {
+                logger.debug("🔍 Consultando últimos {} precios para artículo {}", limit, idArticulo);
                 Pageable pageable = PageRequest.of(0, limit);
                 return historicoPrecioRepository.findLastNPrecios(idArticulo, pageable)
                                 .stream()
@@ -47,9 +51,11 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
         @Override
         @Transactional(readOnly = true)
         public HistoricoPrecioStats getEstadisticas(Long idArticulo) {
+                logger.debug("🔍 Calculando estadísticas para artículo {}", idArticulo);
                 List<HistoricoPrecio> historicos = historicoPrecioRepository.findByArticuloOrderByFechaDesc(idArticulo);
 
                 if (historicos.isEmpty()) {
+                        logger.warn("⚠️ No hay historial para artículo {}", idArticulo);
                         return new HistoricoPrecioStats(0, 0.0, 0.0, 0.0);
                 }
 
@@ -67,6 +73,9 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                                 .mapToDouble(HistoricoPrecio::getPrecioUnitario)
                                 .max()
                                 .orElse(0.0);
+
+                logger.debug("📊 Stats: Total={}, Promedio=${}, Min=${}, Max=${}",
+                                historicos.size(), precioPromedio, precioMin, precioMax);
 
                 return new HistoricoPrecioStats(
                                 historicos.size(),
@@ -94,7 +103,8 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                         Long idArticulo,
                         Double margenGanancia) {
 
-                logger.info("💰 Calculando precio de venta sugerido para artículo {}", idArticulo);
+                logger.info("💰 Calculando precio de venta sugerido para artículo {} con margen {}",
+                                idArticulo, margenGanancia);
 
                 // Obtener estadísticas del historial
                 HistoricoPrecioStats stats = this.getEstadisticas(idArticulo);
@@ -102,7 +112,7 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                 // ✅ Si no hay historial, retornar DTO con valores 0
                 if (stats == null || stats.getTotalRegistros() == 0) {
                         logger.warn("⚠️ Sin historial de compras para artículo {}", idArticulo);
-                        return new PrecioVentaSugeridoDTO(
+                        PrecioVentaSugeridoDTO dtoVacio = new PrecioVentaSugeridoDTO(
                                         0.0,
                                         0.0,
                                         margenGanancia,
@@ -111,6 +121,8 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                                         0.0,
                                         0.0,
                                         "Sin historial de compras");
+                        logger.info("📦 Retornando DTO vacío: {}", dtoVacio);
+                        return dtoVacio;
                 }
 
                 // ✅ Calcular precio de venta
@@ -120,10 +132,12 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                 Double gananciaUnitaria = Math.round(
                                 (precioVentaSugerido - precioCompraPromedio) * 100.0) / 100.0;
 
-                logger.info("✅ Precio sugerido: ${} (ganancia: ${})",
+                logger.info("✅ Precio compra promedio: ${}", precioCompraPromedio);
+                logger.info("✅ Precio venta sugerido: ${} (ganancia: ${})",
                                 precioVentaSugerido, gananciaUnitaria);
+                logger.info("📈 Margen aplicado: {} ({}%)", margenGanancia, (margenGanancia - 1) * 100);
 
-                return new PrecioVentaSugeridoDTO(
+                PrecioVentaSugeridoDTO resultado = new PrecioVentaSugeridoDTO(
                                 Math.round(precioCompraPromedio * 100.0) / 100.0,
                                 precioVentaSugerido,
                                 margenGanancia,
@@ -134,5 +148,9 @@ public class HistoricoPrecioServiceImpl implements IHistoricoPrecioService {
                                 "Precio sugerido para vender y obtener " +
                                                 String.format("%.0f", ((margenGanancia - 1) * 100)) +
                                                 "% de ganancia");
+
+                logger.info("📦 DTO generado completo: {}", resultado);
+
+                return resultado;
         }
 }

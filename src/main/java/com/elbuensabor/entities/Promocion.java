@@ -50,7 +50,7 @@ public class Promocion {
     private TipoDescuento tipoDescuento = TipoDescuento.PORCENTUAL;
 
     @Column(name = "valor_descuento", nullable = false)
-    private Double valorDescuento; // % si es PORCENTUAL, $ si es MONTO_FIJO
+    private Double valorDescuento;
 
     @Column(nullable = false)
     private Boolean activo = true;
@@ -61,7 +61,6 @@ public class Promocion {
     @Column(nullable = false)
     private Boolean eliminado = false;
 
-    // ✅ RELACIONES
     @OneToMany(mappedBy = "promocion", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<PromocionDetalle> detalles = new ArrayList<>();
 
@@ -71,36 +70,60 @@ public class Promocion {
     // ==================== LÓGICA DE NEGOCIO ====================
 
     /**
-     * Verifica si la promoción está actualmente en un período válido (fecha y
-     * hora).
-     * No considera el estado 'activo' o 'eliminado'.
-     * 
-     * @return true si la fecha y hora actual están dentro del rango de la
-     *         promoción.
+     * ✅ Verifica si la fecha actual está dentro del rango de fechas de la
+     * promoción.
+     * NO considera la hora, solo fechas.
      */
-    public boolean estaEnPeriodoValido() {
+    public boolean estaEnRangoFechas() {
         LocalDateTime ahora = LocalDateTime.now();
-        LocalTime horaActual = ahora.toLocalTime();
-
-        return !ahora.isBefore(fechaDesde) && !ahora.isAfter(fechaHasta) &&
-                !horaActual.isBefore(horaDesde) && !horaActual.isAfter(horaHasta);
+        return !ahora.isBefore(fechaDesde) && !ahora.isAfter(fechaHasta);
     }
 
     /**
-     * Verifica si la promoción está vigente y puede ser aplicada.
-     * Considera el estado 'activo', 'eliminado' y el período de validez.
-     * 
-     * @return true si la promoción es aplicable ahora mismo.
+     * ✅ Verifica si la hora actual está dentro del rango horario de la promoción.
+     * Maneja correctamente horarios nocturnos (ej: 22:00 a 02:00).
+     */
+    public boolean estaEnRangoHorario() {
+        LocalTime horaActual = LocalTime.now();
+
+        // Si horaDesde <= horaHasta: horario normal (ej: 10:00 a 22:00)
+        if (!horaDesde.isAfter(horaHasta)) {
+            return !horaActual.isBefore(horaDesde) && !horaActual.isAfter(horaHasta);
+        } else {
+            // Horario nocturno que cruza medianoche (ej: 22:00 a 02:00)
+            // Está válido si: horaActual >= horaDesde OR horaActual <= horaHasta
+            return !horaActual.isBefore(horaDesde) || !horaActual.isAfter(horaHasta);
+        }
+    }
+
+    /**
+     * ✅ Verifica si la promoción está en período válido (fecha Y hora).
+     * Usado para aplicar descuentos en el carrito.
+     */
+    public boolean estaEnPeriodoValido() {
+        return estaEnRangoFechas() && estaEnRangoHorario();
+    }
+
+    /**
+     * ✅ NUEVO: Verifica si la promoción debe mostrarse en el catálogo.
+     * Solo verifica fechas, NO horario - para mostrar todas las promos del día.
+     * El cliente verá el horario en la UI.
+     */
+    public boolean estaVigenteParaMostrar() {
+        return this.activo && !this.eliminado && estaEnRangoFechas();
+    }
+
+    /**
+     * ✅ Verifica si la promoción está vigente Y aplica AHORA MISMO.
+     * Considera activo, eliminado, fecha Y hora.
+     * Usado para aplicar descuentos en el carrito.
      */
     public boolean estaVigente() {
         return this.activo && !this.eliminado && estaEnPeriodoValido();
     }
 
     /**
-     * Calcula y devuelve el estado actual de la promoción.
-     * Útil para la UI del administrador.
-     * 
-     * @return El enum EstadoPromocion correspondiente.
+     * ✅ Calcula y devuelve el estado actual de la promoción.
      */
     @Transient
     public EstadoPromocion getEstado() {
@@ -115,6 +138,26 @@ public class Promocion {
             return EstadoPromocion.EXPIRADA;
         }
         return EstadoPromocion.VIGENTE;
+    }
+
+    /**
+     * ✅ NUEVO: Verifica si la promoción aplica en este momento exacto.
+     * Útil para mostrar badges como "¡Disponible ahora!" o "Disponible de X a Y"
+     */
+    @Transient
+    public boolean estaDisponibleAhora() {
+        return estaVigente();
+    }
+
+    /**
+     * ✅ NUEVO: Genera texto legible del horario de la promoción.
+     * Ej: "Disponible de 15:00 a 20:59"
+     */
+    @Transient
+    public String getTextoHorario() {
+        return String.format("Disponible de %s a %s",
+                horaDesde.toString(),
+                horaHasta.toString());
     }
 
     public boolean aplicaParaArticulo(Long idArticulo) {

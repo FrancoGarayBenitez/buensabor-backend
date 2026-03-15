@@ -1,379 +1,385 @@
-// package com.elbuensabor.controllers;
+package com.elbuensabor.controllers;
 
-// import com.elbuensabor.dto.request.PedidoRequestDTO;
-// import com.elbuensabor.dto.response.HorarioStatusResponseDTO;
-// import com.elbuensabor.dto.response.PedidoResponseDTO;
-// import com.elbuensabor.services.IHorarioService;
-// import com.elbuensabor.services.IPedidoService;
-// import com.elbuensabor.services.impl.HorarioServiceImpl;
-// import jakarta.validation.Valid;
-// import lombok.AllArgsConstructor;
-// import lombok.Data;
-// import lombok.NoArgsConstructor;
-// import org.springframework.beans.factory.annotation.Autowired;
-// import org.springframework.http.HttpStatus;
-// import org.springframework.http.ResponseEntity;
-// import org.springframework.web.bind.annotation.*;
-// import com.elbuensabor.dto.response.FacturaResponseDTO;
-// import com.elbuensabor.services.impl.PromocionPedidoService;
-// import org.slf4j.Logger;
-// import org.slf4j.LoggerFactory;
+import com.elbuensabor.dto.request.pedido.*;
+import com.elbuensabor.dto.response.pedido.*;
+import com.elbuensabor.entities.Usuario;
+import com.elbuensabor.services.IPedidoService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
-// import java.util.List;
-// import java.util.Map;
-// import java.util.stream.Collectors;
+import jakarta.validation.Valid;
+import java.time.LocalDate;
+import java.util.List;
 
-// @RestController
-// @RequestMapping("/api/pedidos")
-// public class PedidoController {
+@RestController
+@RequestMapping("/api/pedidos")
+public class PedidoController {
 
-// private final IPedidoService pedidoService;
-// private final IHorarioService horarioService;
-// private final PromocionPedidoService promocionPedidoService;
-// private static final Logger logger =
-// LoggerFactory.getLogger(PedidoController.class);
+    private static final Logger logger = LoggerFactory.getLogger(PedidoController.class);
+    private final IPedidoService service;
 
-// @Autowired
-// public PedidoController(IPedidoService pedidoService, IHorarioService
-// horarioService, PromocionPedidoService promocionPedidoService) {
-// this.pedidoService = pedidoService;
-// this.horarioService = horarioService;
-// this.promocionPedidoService = promocionPedidoService; // NUEVO
-// }
+    @Autowired
+    public PedidoController(IPedidoService service) {
+        this.service = service;
+    }
 
-// // ==================== CREAR PEDIDO ====================
-// @PostMapping
-// public ResponseEntity<?> crearPedido(@Valid @RequestBody PedidoRequestDTO
-// pedidoRequest) {
+    // ==================== CREACIÓN DE PEDIDOS ====================
 
-// // ✅ NUEVO: Log para debugging promociones
-// System.out.println("🔍 REQUEST RECIBIDO:");
-// System.out.println("📝 Cliente: " + pedidoRequest.getIdCliente());
-// System.out.println("📝 Tipo envío: " + pedidoRequest.getTipoEnvio());
-// System.out.println("📝 Cantidad productos: " +
-// pedidoRequest.getDetalles().size());
+    /**
+     * Crea un nuevo pedido (CLIENTE)
+     */
+    @PostMapping
+    @PreAuthorize("hasAuthority('CLIENTE')")
+    public ResponseEntity<PedidoClienteResponse> crearPedido(
+            @Valid @RequestBody CrearPedidoRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 POST /api/pedidos - Cliente {} creando pedido", usuario.getEmail());
 
-// // ✅ NUEVO: Verificar promoción agrupada
-// if (pedidoRequest.getPromocionAgrupada() != null) {
-// System.out.println("🎁 PROMOCIÓN AGRUPADA RECIBIDA:");
-// System.out.println(" - ID: " +
-// pedidoRequest.getPromocionAgrupada().getIdPromocion());
-// System.out.println(" - Nombre: " +
-// pedidoRequest.getPromocionAgrupada().getDenominacion());
-// System.out.println(" - Tipo: " +
-// pedidoRequest.getPromocionAgrupada().getTipoDescuento());
-// System.out.println(" - Valor: " +
-// pedidoRequest.getPromocionAgrupada().getValorDescuento() + "%");
-// System.out.println(" - Descuento: $" +
-// pedidoRequest.getPromocionAgrupada().getDescuentoAplicado());
-// } else {
-// System.out.println("ℹ️ Sin promoción agrupada");
-// }
+        try {
+            PedidoClienteResponse pedido = service.crearPedido(request, usuario);
+            logger.info("✅ Pedido {} creado exitosamente para cliente {}", pedido.getIdPedido(), usuario.getEmail());
+            return ResponseEntity.status(HttpStatus.CREATED).body(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al crear pedido: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al crear pedido", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// // El controlador ahora recibe un objeto de estado completo
-// HorarioStatusResponseDTO estadoHorario = horarioService.getEstadoHorario();
+    // ==================== CONSULTAS GENERALES ====================
 
-// if (!estadoHorario.isAbierto()) {
-// // Usamos el mensaje que viene del DTO
-// Map<String, String> errorResponse = Map.of(
-// "error", "Fuera de horario de atención",
-// "message", estadoHorario.getMensaje()
-// );
-// return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);
-// }
+    /**
+     * Obtiene todos los pedidos (ADMIN)
+     */
+    @GetMapping
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<List<PedidoResponse>> listarTodos() {
+        logger.debug("📥 GET /api/pedidos - Listando todos los pedidos (ADMIN)");
 
-// PedidoResponseDTO pedidoCreado = pedidoService.crearPedido(pedidoRequest);
-// return new ResponseEntity<>(pedidoCreado, HttpStatus.CREATED);
-// }
+        List<PedidoResponse> pedidos = service.listarTodosPedidos();
+        logger.info("✅ Se encontraron {} pedidos", pedidos.size());
+        return ResponseEntity.ok(pedidos);
+    }
 
-// // ==================== OBTENER PEDIDOS - AL FINAL ====================
+    /**
+     * Obtiene un pedido por ID (Todos los roles - vista según rol)
+     */
+    @GetMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<?> obtenerPorId(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.debug("📥 GET /api/pedidos/{} - Usuario {} obteniendo pedido", id, usuario.getEmail());
 
-// @GetMapping("/{id}")
-// public ResponseEntity<PedidoResponseDTO> getPedidoById(@PathVariable Long id)
-// {
-// PedidoResponseDTO pedido = pedidoService.findById(id);
-// return ResponseEntity.ok(pedido);
-// }
+        try {
+            Object pedido = service.obtenerPedidoPorId(id, usuario);
+            logger.info("✅ Pedido {} obtenido exitosamente", id);
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al obtener pedido {}: {}", id, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al obtener pedido {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// @GetMapping("/cliente/{idCliente}")
-// public ResponseEntity<List<PedidoResponseDTO>>
-// getPedidosByCliente(@PathVariable Long idCliente) {
-// List<PedidoResponseDTO> pedidos = pedidoService.findByCliente(idCliente);
-// return ResponseEntity.ok(pedidos);
-// }
+    // ==================== CONSULTAS POR ROL ====================
 
-// // ==================== OPERACIONES DE ESTADO ====================
-// @PutMapping("/{id}/confirmar")
-// public ResponseEntity<PedidoResponseDTO> confirmarPedido(@PathVariable Long
-// id) {
-// PedidoResponseDTO pedidoConfirmado = pedidoService.confirmarPedido(id);
-// return ResponseEntity.ok(pedidoConfirmado);
-// }
+    /**
+     * Obtiene pedidos del día actual (CAJERO/ADMIN)
+     */
+    @GetMapping("/del-dia")
+    @PreAuthorize("hasAnyAuthority('CAJERO', 'ADMIN')")
+    public ResponseEntity<List<PedidoCajeroResponse>> listarPedidosDelDia() {
+        logger.debug("📥 GET /api/pedidos/del-dia - Listando pedidos del día");
 
-// @PutMapping("/{id}/preparacion")
-// public ResponseEntity<PedidoResponseDTO> marcarEnPreparacion(@PathVariable
-// Long id) {
-// PedidoResponseDTO pedido = pedidoService.marcarEnPreparacion(id);
-// return ResponseEntity.ok(pedido);
-// }
+        List<PedidoCajeroResponse> pedidos = service.listarPedidosDelDia();
+        logger.info("✅ Se encontraron {} pedidos del día", pedidos.size());
+        return ResponseEntity.ok(pedidos);
+    }
 
-// @PutMapping("/{id}/listo")
-// public ResponseEntity<PedidoResponseDTO> marcarListo(@PathVariable Long id) {
-// PedidoResponseDTO pedido = pedidoService.marcarListo(id);
-// return ResponseEntity.ok(pedido);
-// }
+    /**
+     * Obtiene pedidos por estado (ADMIN/CAJERO)
+     */
+    @GetMapping("/estado/{estado}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'CAJERO')")
+    public ResponseEntity<List<PedidoResponse>> listarPorEstado(@PathVariable String estado) {
+        logger.debug("📥 GET /api/pedidos/estado/{} - Listando pedidos por estado", estado);
 
-// @PutMapping("/{id}/entregado")
-// public ResponseEntity<PedidoResponseDTO> marcarEntregado(@PathVariable Long
-// id) {
-// PedidoResponseDTO pedido = pedidoService.marcarEntregado(id);
-// return ResponseEntity.ok(pedido);
-// }
+        try {
+            List<PedidoResponse> pedidos = service.listarPedidosPorEstado(estado);
+            logger.info("✅ Se encontraron {} pedidos con estado {}", pedidos.size(), estado);
+            return ResponseEntity.ok(pedidos);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Estado inválido: {}", estado);
+            return ResponseEntity.badRequest().build();
+        }
+    }
 
-// @PutMapping("/{id}/cancelar")
-// public ResponseEntity<PedidoResponseDTO> cancelarPedido(@PathVariable Long
-// id) {
-// PedidoResponseDTO pedido = pedidoService.cancelarPedido(id);
-// return ResponseEntity.ok(pedido);
-// }
+    /**
+     * Obtiene pedidos por fecha (ADMIN/CAJERO)
+     */
+    @GetMapping("/fecha/{fecha}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'CAJERO')")
+    public ResponseEntity<List<PedidoResponse>> listarPorFecha(
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {
+        logger.debug("📥 GET /api/pedidos/fecha/{} - Listando pedidos por fecha", fecha);
 
-// // ==================== VALIDACIONES PREVIAS - PRIMERO ====================
-// @PostMapping("/validar")
-// public ResponseEntity<Boolean> validarPedido(@Valid @RequestBody
-// PedidoRequestDTO pedidoRequest) {
-// Boolean esValido = pedidoService.validarStockDisponible(pedidoRequest);
-// return ResponseEntity.ok(esValido);
-// }
+        List<PedidoResponse> pedidos = service.listarPedidosPorFecha(fecha);
+        logger.info("✅ Se encontraron {} pedidos para la fecha {}", pedidos.size(), fecha);
+        return ResponseEntity.ok(pedidos);
+    }
 
-// @PostMapping("/calcular-total")
-// public ResponseEntity<Double> calcularTotal(@Valid @RequestBody
-// PedidoRequestDTO pedidoRequest) {
-// Double total = pedidoService.calcularTotal(pedidoRequest);
-// return ResponseEntity.ok(total);
-// }
+    /**
+     * Obtiene pedidos para cocina (COCINERO)
+     */
+    @GetMapping("/cocina")
+    @PreAuthorize("hasAuthority('COCINERO')")
+    public ResponseEntity<List<PedidoCocineroResponse>> listarPedidosCocina() {
+        logger.debug("📥 GET /api/pedidos/cocina - Listando pedidos para cocina");
 
-// @PostMapping("/tiempo-estimado")
-// public ResponseEntity<Integer> calcularTiempoEstimado(@Valid @RequestBody
-// PedidoRequestDTO pedidoRequest) {
-// Integer tiempoMinutos = pedidoService.calcularTiempoEstimado(pedidoRequest);
-// return ResponseEntity.ok(tiempoMinutos);
-// }
+        List<PedidoCocineroResponse> pedidos = service.listarPedidosCocina();
+        logger.info("✅ Se encontraron {} pedidos para cocina", pedidos.size());
+        return ResponseEntity.ok(pedidos);
+    }
 
-// // ==================== FILTROS PARA DIFERENTES ROLES ====================
+    /**
+     * Obtiene pedidos para delivery (DELIVERY)
+     */
+    @GetMapping("/delivery")
+    @PreAuthorize("hasAuthority('DELIVERY')")
+    public ResponseEntity<List<PedidoDeliveryResponse>> listarPedidosDelivery() {
+        logger.debug("📥 GET /api/pedidos/delivery - Listando pedidos para delivery");
 
-// // Para administradores/gerentes - ver todos los pedidos por estado
-// @GetMapping("/pendientes")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosPendientes() {
-// List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
-// return ResponseEntity.ok(pedidos);
-// }
+        List<PedidoDeliveryResponse> pedidos = service.listarPedidosDelivery();
+        logger.info("✅ Se encontraron {} pedidos para delivery", pedidos.size());
+        return ResponseEntity.ok(pedidos);
+    }
 
-// @GetMapping("/en-preparacion")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosEnPreparacion() {
-// List<PedidoResponseDTO> pedidos = pedidoService.findPedidosEnPreparacion();
-// return ResponseEntity.ok(pedidos);
-// }
+    /**
+     * Obtiene pedidos de un cliente (CLIENTE - sus propios pedidos)
+     */
+    @GetMapping("/mis-pedidos")
+    @PreAuthorize("hasAuthority('CLIENTE')")
+    public ResponseEntity<List<PedidoClienteResponse>> listarMisPedidos(
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.debug("📥 GET /api/pedidos/mis-pedidos - Cliente {} obteniendo sus pedidos", usuario.getEmail());
 
-// // Para delivery - pedidos listos para entregar
-// @GetMapping("/listos-para-entrega")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaEntrega()
-// {
-// List<PedidoResponseDTO> pedidos =
-// pedidoService.findPedidosListosParaEntrega();
-// return ResponseEntity.ok(pedidos);
-// }
+        try {
+            // Obtener el ID del cliente desde el usuario autenticado
+            Long idCliente = usuario.getCliente().getIdCliente();
+            List<PedidoClienteResponse> pedidos = service.listarPedidosCliente(idCliente);
+            logger.info("✅ Se encontraron {} pedidos para el cliente {}", pedidos.size(), usuario.getEmail());
+            return ResponseEntity.ok(pedidos);
+        } catch (Exception e) {
+            logger.error("❌ Error al obtener pedidos del cliente {}", usuario.getEmail(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// // Para mostrador/caja - pedidos listos para retirar
-// @GetMapping("/listos-para-retiro")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosListosParaRetiro() {
-// List<PedidoResponseDTO> pedidos =
-// pedidoService.findPedidosListosParaRetiro();
-// return ResponseEntity.ok(pedidos);
-// }
+    // ==================== GESTIÓN DE PAGOS ====================
 
-// // ==================== ENDPOINTS ESPECÍFICOS PARA COCINA
-// ====================
+    /**
+     * Confirma el pago en efectivo de un pedido (CAJERO/ADMIN)
+     */
+    @PostMapping("/confirmar-pago")
+    @PreAuthorize("hasAnyAuthority('CAJERO', 'ADMIN')")
+    public ResponseEntity<PedidoResponse> confirmarPago(
+            @Valid @RequestBody ConfirmarPagoRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 POST /api/pedidos/confirmar-pago - {} confirmando pago del pedido {}",
+                usuario.getRol(), request.getIdPedido());
 
-// // Dashboard de cocina - pedidos que necesitan atención
-// @GetMapping("/cocina/pendientes-confirmacion")
-// public ResponseEntity<List<PedidoResponseDTO>>
-// getPedidosPendientesConfirmacion() {
-// List<PedidoResponseDTO> pedidos = pedidoService.findPedidosPendientes();
-// return ResponseEntity.ok(pedidos);
-// }
+        try {
+            PedidoResponse pedido = service.confirmarPago(request, usuario);
+            logger.info("✅ Pago del pedido {} confirmado por {}", request.getIdPedido(), usuario.getEmail());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al confirmar pago: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al confirmar pago", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// @GetMapping("/cocina/en-proceso")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosEnProceso() {
-// List<PedidoResponseDTO> pedidos = pedidoService.findPedidosEnPreparacion();
-// return ResponseEntity.ok(pedidos);
-// }
+    // ==================== GESTIÓN DE ESTADOS ====================
 
-// // ==================== ENDPOINTS PARA DELIVERY ====================
+    /**
+     * Cambia el estado de un pedido (Según rol)
+     */
+    @PutMapping("/cambiar-estado")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'CAJERO', 'COCINERO', 'DELIVERY')")
+    public ResponseEntity<?> cambiarEstado(
+            @Valid @RequestBody CambiarEstadoPedidoRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 PUT /api/pedidos/cambiar-estado - {} cambiando estado del pedido {} a {}",
+                usuario.getRol(), request.getIdPedido(), request.getNuevoEstado());
 
-// // Solo pedidos de delivery listos para entregar
-// @GetMapping("/delivery/pendientes")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosDeliveryPendientes()
-// {
-// List<PedidoResponseDTO> pedidos =
-// pedidoService.findPedidosListosParaEntrega();
-// return ResponseEntity.ok(pedidos);
-// }
+        try {
+            Object pedido = service.cambiarEstado(request, usuario);
+            logger.info("✅ Estado del pedido {} cambiado a {} por {}",
+                    request.getIdPedido(), request.getNuevoEstado(), usuario.getEmail());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al cambiar estado: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al cambiar estado", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// // ==================== ENDPOINTS PARA MOSTRADOR ====================
+    /**
+     * Cancela un pedido (CLIENTE/CAJERO/ADMIN)
+     */
+    @PutMapping("/cancelar")
+    @PreAuthorize("hasAnyAuthority('CLIENTE', 'CAJERO', 'ADMIN', 'COCINERO')")
+    public ResponseEntity<?> cancelarPedido(
+            @Valid @RequestBody CancelarPedidoRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 PUT /api/pedidos/cancelar - {} cancelando pedido {}",
+                usuario.getRol(), request.getIdPedido());
 
-// // Solo pedidos de take away listos para retirar
-// @GetMapping("/mostrador/listos")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosMostradorListos() {
-// List<PedidoResponseDTO> pedidos =
-// pedidoService.findPedidosListosParaRetiro();
-// return ResponseEntity.ok(pedidos);
-// }
+        try {
+            Object pedido = service.cancelarPedido(request, usuario);
+            logger.info("✅ Pedido {} cancelado por {}", request.getIdPedido(), usuario.getEmail());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al cancelar pedido: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al cancelar pedido", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// /**
-// * Obtiene todos los pedidos listos (para vista de cocina)
-// */
-// @GetMapping("/listos")
-// public ResponseEntity<List<PedidoResponseDTO>> getPedidosListos() {
-// try {
-// List<PedidoResponseDTO> pedidos = pedidoService.findPedidosListos();
-// return ResponseEntity.ok(pedidos);
-// } catch (Exception e) {
-// logger.error("Error al obtener pedidos listos: {}", e.getMessage(), e);
-// return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-// }
-// }
+    // ==================== GESTIÓN DE COCINA ====================
 
-// /**
-// * Obtiene la factura asociada a un pedido específico
-// */
-// @GetMapping("/{id}/factura")
-// public ResponseEntity<FacturaResponseDTO> getFacturaPedido(@PathVariable Long
-// id) {
-// try {
-// FacturaResponseDTO factura = pedidoService.getFacturaPedido(id);
-// return ResponseEntity.ok(factura);
-// } catch (Exception e) {
-// return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-// }
-// }
+    /**
+     * Inicia la preparación de un pedido (COCINERO)
+     */
+    @PutMapping("/{id}/iniciar-preparacion")
+    @PreAuthorize("hasAuthority('COCINERO')")
+    public ResponseEntity<PedidoCocineroResponse> iniciarPreparacion(@PathVariable("id") Long id) {
+        logger.info("📥 PUT /api/pedidos/{}/iniciar-preparacion - Iniciando preparación", id);
 
-// /**
-// * Obtiene todos los pedidos (endpoint básico para gestión)
-// */
+        try {
+            PedidoCocineroResponse pedido = service.iniciarPreparacion(id);
+            logger.info("✅ Preparación del pedido {} iniciada", id);
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al iniciar preparación del pedido {}: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al iniciar preparación del pedido {}", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// @GetMapping
-// public ResponseEntity<List<PedidoResponseDTO>> getAllPedidos() {
-// try {
-// List<PedidoResponseDTO> pedidos = pedidoService.findAll();
-// return ResponseEntity.ok(pedidos);
-// } catch (Exception e) {
-// logger.error("Error al obtener todos los pedidos: {}", e.getMessage(), e);
-// return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-// }
-// }
-// /**
-// * POST /api/pedidos/preview-carrito
-// * Preview del carrito con promociones aplicadas
-// */
-// @PostMapping("/preview-carrito")
-// public ResponseEntity<CarritoPreviewDTO> previewCarrito(@Valid @RequestBody
-// PedidoRequestDTO pedidoRequest) {
-// try {
-// // Usar el service de promociones para calcular
-// PromocionPedidoService.PromocionesAplicadasDTO promocionesAplicadas =
-// promocionPedidoService.aplicarPromocionesAPedido(pedidoRequest);
+    /**
+     * Marca un pedido como listo (COCINERO)
+     */
+    @PutMapping("/{id}/marcar-listo")
+    @PreAuthorize("hasAuthority('COCINERO')")
+    public ResponseEntity<PedidoCocineroResponse> marcarListo(@PathVariable("id") Long id) {
+        logger.info("📥 PUT /api/pedidos/{}/marcar-listo - Marcando pedido como listo", id);
 
-// // Calcular totales
-// Double subtotalOriginal = promocionesAplicadas.getSubtotalOriginal();
-// Double descuentoTotal = promocionesAplicadas.getDescuentoTotal();
-// Double subtotalConDescuentos = promocionesAplicadas.getSubtotalFinal();
+        try {
+            PedidoCocineroResponse pedido = service.marcarListo(id);
+            logger.info("✅ Pedido {} marcado como listo", id);
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al marcar pedido {} como listo: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al marcar pedido {} como listo", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// // Agregar costo de envío si es delivery
-// Double gastosEnvio = 0.0;
-// if ("DELIVERY".equals(pedidoRequest.getTipoEnvio())) {
-// gastosEnvio = 200.0;
-// }
+    /**
+     * Extiende el tiempo de preparación de un pedido (COCINERO)
+     */
+    @PutMapping("/extender-tiempo")
+    @PreAuthorize("hasAuthority('COCINERO')")
+    public ResponseEntity<PedidoCocineroResponse> extenderTiempo(
+            @Valid @RequestBody ExtenderTiempoRequest request) {
+        logger.info("📥 PUT /api/pedidos/extender-tiempo - Extendiendo tiempo del pedido {} en {} minutos",
+                request.getIdPedido(), request.getMinutosExtension());
 
-// Double totalFinal = subtotalConDescuentos + gastosEnvio;
+        try {
+            PedidoCocineroResponse pedido = service.extenderTiempo(request);
+            logger.info("✅ Tiempo del pedido {} extendido en {} minutos",
+                    request.getIdPedido(), request.getMinutosExtension());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al extender tiempo: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al extender tiempo", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// // Crear response
-// CarritoPreviewDTO preview = new CarritoPreviewDTO();
-// preview.setSubtotalOriginal(subtotalOriginal);
-// preview.setDescuentoTotal(descuentoTotal);
-// preview.setSubtotalConDescuentos(subtotalConDescuentos);
-// preview.setGastosEnvio(gastosEnvio);
-// preview.setTotalFinal(totalFinal);
-// preview.setTipoEnvio(pedidoRequest.getTipoEnvio());
-// preview.setResumenPromociones(promocionesAplicadas.getResumenPromociones());
+    // ==================== GESTIÓN DE DELIVERY ====================
 
-// // Mapear detalles con promociones
-// List<CarritoPreviewDTO.DetallePreviewDTO> detallesPreview =
-// promocionesAplicadas.getDetallesConPromociones().stream()
-// .map(detalle -> {
-// CarritoPreviewDTO.DetallePreviewDTO detalleDto = new
-// CarritoPreviewDTO.DetallePreviewDTO();
-// detalleDto.setIdArticulo(detalle.getIdArticulo());
-// detalleDto.setDenominacionArticulo(detalle.getDenominacionArticulo());
-// detalleDto.setCantidad(detalle.getCantidad());
-// detalleDto.setPrecioUnitarioOriginal(detalle.getPrecioUnitarioOriginal());
-// detalleDto.setPrecioUnitarioFinal(detalle.getPrecioUnitarioFinal());
-// detalleDto.setSubtotalOriginal(detalle.getSubtotalOriginal());
-// detalleDto.setSubtotalFinal(detalle.getSubtotalFinal());
-// detalleDto.setDescuentoAplicado(detalle.getDescuentoAplicado());
-// detalleDto.setTienePromocion(detalle.getTienePromocion());
-// detalleDto.setObservaciones(detalle.getObservaciones());
+    /**
+     * Marca un pedido como entregado (DELIVERY)
+     */
+    @PutMapping("/{id}/marcar-entregado")
+    @PreAuthorize("hasAuthority('DELIVERY')")
+    public ResponseEntity<PedidoDeliveryResponse> marcarEntregado(
+            @PathVariable("id") Long id,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 PUT /api/pedidos/{}/marcar-entregado - Delivery {} marcando como entregado",
+                id, usuario.getEmail());
 
-// if (detalle.getPromocionAplicada() != null) {
-// detalleDto.setNombrePromocion(detalle.getPromocionAplicada().getDenominacion());
-// detalleDto.setResumenDescuento(detalle.getPromocionAplicada().getResumenDescuento());
-// }
+        try {
+            PedidoDeliveryResponse pedido = service.marcarEntregado(id, usuario);
+            logger.info("✅ Pedido {} marcado como entregado por {}", id, usuario.getEmail());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al marcar pedido {} como entregado: {}", id, e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al marcar pedido {} como entregado", id, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
-// return detalleDto;
-// })
-// .collect(Collectors.toList());
+    /**
+     * Asigna un delivery a un pedido (CAJERO/ADMIN)
+     */
+    @PutMapping("/asignar-delivery")
+    @PreAuthorize("hasAnyAuthority('CAJERO', 'ADMIN')")
+    public ResponseEntity<PedidoResponse> asignarDelivery(
+            @Valid @RequestBody AsignarDeliveryRequest request,
+            @AuthenticationPrincipal Usuario usuario) {
+        logger.info("📥 PUT /api/pedidos/asignar-delivery - Asignando delivery {} al pedido {}",
+                request.getIdUsuarioDelivery(), request.getIdPedido());
 
-// preview.setDetalles(detallesPreview);
-
-// return ResponseEntity.ok(preview);
-
-// } catch (Exception e) {
-// return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-// }
-// }
-
-// // ===============================================
-// // AGREGAR ESTA CLASE INTERNA AL FINAL DEL CONTROLLER
-// // ===============================================
-
-// @Data
-// @NoArgsConstructor
-// @AllArgsConstructor
-// public static class CarritoPreviewDTO {
-// private Double subtotalOriginal; // Total sin promociones
-// private Double descuentoTotal; // Total de descuentos aplicados
-// private Double subtotalConDescuentos; // Subtotal después de promociones
-// private Double gastosEnvio; // Gastos de envío (si es delivery)
-// private Double totalFinal; // Total final a pagar
-// private String tipoEnvio; // DELIVERY o TAKE_AWAY
-// private String resumenPromociones; // Resumen de promociones aplicadas
-// private List<DetallePreviewDTO> detalles; // Detalles con promociones
-
-// @Data
-// @NoArgsConstructor
-// @AllArgsConstructor
-// public static class DetallePreviewDTO {
-// private Long idArticulo;
-// private String denominacionArticulo;
-// private Integer cantidad;
-// private Double precioUnitarioOriginal;
-// private Double precioUnitarioFinal;
-// private Double subtotalOriginal;
-// private Double subtotalFinal;
-// private Double descuentoAplicado;
-// private Boolean tienePromocion;
-// private String observaciones;
-// private String nombrePromocion;
-// private String resumenDescuento;
-// }
-// }
-// }
+        try {
+            PedidoResponse pedido = service.asignarDelivery(request, usuario);
+            logger.info("✅ Delivery {} asignado al pedido {} por {}",
+                    request.getIdUsuarioDelivery(), request.getIdPedido(), usuario.getEmail());
+            return ResponseEntity.ok(pedido);
+        } catch (IllegalArgumentException e) {
+            logger.error("❌ Error al asignar delivery: {}", e.getMessage());
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("❌ Error inesperado al asignar delivery", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+}

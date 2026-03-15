@@ -1,5 +1,7 @@
 package com.elbuensabor.dto.response;
 
+import com.elbuensabor.dto.response.pedido.PedidoResponse;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,7 +12,7 @@ import lombok.NoArgsConstructor;
 public class PedidoConMercadoPagoResponseDTO {
 
     // ==================== INFORMACIÓN DEL PEDIDO CREADO ====================
-    private PedidoResponseDTO pedido;
+    private PedidoResponse pedido;
 
     // ==================== INFORMACIÓN DE LA FACTURA GENERADA ====================
     private FacturaResponseDTO factura;
@@ -32,33 +34,33 @@ public class PedidoConMercadoPagoResponseDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class CalculoTotalesDTO {
-        private Double subtotalProductos;      // Total de productos sin descuentos
-        private Double descuentoTakeAway;      // Monto del descuento aplicado (si aplica)
-        private Double porcentajeDescuento;    // % de descuento aplicado
-        private Double gastosEnvio;            // Gastos de envío (si es DELIVERY)
-        private Double totalFinal;             // Total final a pagar
-        private String tipoEnvio;              // TAKE_AWAY o DELIVERY
-        private String resumenCalculo;         // Descripción del cálculo
-        private Boolean seAplicoDescuento;     // Si se aplicó descuento
+        private Double subtotalProductos; // Total de productos sin descuentos
+        private Double descuentoTakeAway; // Monto del descuento aplicado (si aplica)
+        private Double porcentajeDescuento; // % de descuento aplicado
+        private Double gastosEnvio; // Gastos de envío (si es DELIVERY)
+        private Double totalFinal; // Total final a pagar
+        private String tipoEnvio; // TAKE_AWAY o DELIVERY
+        private String resumenCalculo; // Descripción del cálculo
+        private Boolean seAplicoDescuento; // Si se aplicó descuento
     }
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class MercadoPagoInfoDTO {
-        private Boolean preferenciaCreada;     // Si se creó la preferencia
-        private String preferenceId;           // ID de la preferencia
-        private String linkPago;               // URL para pagar (initPoint)
-        private String linkPagoSandbox;        // URL de sandbox para testing
-        private String externalReference;      // Referencia externa
-        private String qrCodeUrl;              // URL del QR (si está disponible)
-        private String errorMercadoPago;       // Error si falló la creación
+        private Boolean preferenciaCreada; // Si se creó la preferencia
+        private String preferenceId; // ID de la preferencia
+        private String linkPago; // URL para pagar (initPoint)
+        private String linkPagoSandbox; // URL de sandbox para testing
+        private String externalReference; // Referencia externa
+        private String qrCodeUrl; // URL del QR (si está disponible)
+        private String errorMercadoPago; // Error si falló la creación
     }
 
     // ==================== MÉTODOS DE CONVENIENCIA ====================
 
     public static PedidoConMercadoPagoResponseDTO exitoso(
-            PedidoResponseDTO pedido,
+            PedidoResponse pedido,
             FacturaResponseDTO factura,
             CalculoTotalesDTO totales,
             MercadoPagoInfoDTO mercadoPago,
@@ -71,8 +73,7 @@ public class PedidoConMercadoPagoResponseDTO {
                 mercadoPago,
                 true,
                 "Pedido creado exitosamente con link de pago",
-                tiempoProcesamiento
-        );
+                tiempoProcesamiento);
     }
 
     public static PedidoConMercadoPagoResponseDTO conError(
@@ -86,12 +87,11 @@ public class PedidoConMercadoPagoResponseDTO {
                 null,
                 false,
                 mensaje,
-                tiempoProcesamiento
-        );
+                tiempoProcesamiento);
     }
 
     public static PedidoConMercadoPagoResponseDTO parcialmenteExitoso(
-            PedidoResponseDTO pedido,
+            PedidoResponse pedido,
             FacturaResponseDTO factura,
             CalculoTotalesDTO totales,
             String errorMercadoPago,
@@ -108,7 +108,6 @@ public class PedidoConMercadoPagoResponseDTO {
                 mpInfo,
                 true,
                 "Pedido creado exitosamente, pero falló la creación del link de pago: " + errorMercadoPago,
-                tiempoProcesamiento
-        );
+                tiempoProcesamiento);
     }
 }

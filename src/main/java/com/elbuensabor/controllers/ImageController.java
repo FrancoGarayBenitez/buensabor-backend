@@ -87,7 +87,7 @@ public class ImageController {
      * Endpoint para eliminar una imagen (registro en BD + archivo físico)
      */
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteImage(@PathVariable Long id) {
+    public ResponseEntity<?> deleteImage(@PathVariable("id") Long id) {
         try {
             // CORRECCIÓN: Usar deleteCompletely para borrar el archivo físico y el registro
             // en BD

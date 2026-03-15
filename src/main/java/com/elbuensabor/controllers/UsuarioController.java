@@ -48,7 +48,7 @@ public class UsuarioController {
      */
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<EmpleadoResponseDTO> obtenerUsuarioPorId(@PathVariable Long id) {
+    public ResponseEntity<EmpleadoResponseDTO> obtenerUsuarioPorId(@PathVariable("id") Long id) {
         logger.debug("Admin solicitando detalles del usuario ID: {}", id);
         EmpleadoResponseDTO usuario = usuarioService.obtenerUsuarioPorId(id);
         return ResponseEntity.ok(usuario);

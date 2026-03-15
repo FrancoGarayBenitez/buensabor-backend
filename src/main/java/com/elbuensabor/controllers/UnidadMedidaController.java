@@ -26,7 +26,7 @@ public class UnidadMedidaController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UnidadMedida> getUnidadMedidaById(@PathVariable Long id) {
+    public ResponseEntity<UnidadMedida> getUnidadMedidaById(@PathVariable("id") Long id) {
         UnidadMedida unidad = unidadMedidaRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Unidad de medida no encontrada"));
         return ResponseEntity.ok(unidad);
@@ -41,7 +41,8 @@ public class UnidadMedidaController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<UnidadMedida> updateUnidadMedida(@PathVariable Long id, @Valid @RequestBody UnidadMedida unidadMedida) {
+    public ResponseEntity<UnidadMedida> updateUnidadMedida(@PathVariable("id") Long id,
+            @Valid @RequestBody UnidadMedida unidadMedida) {
         if (!unidadMedidaRepository.existsById(id)) {
             throw new RuntimeException("Unidad de medida no encontrada");
         }
@@ -51,7 +52,7 @@ public class UnidadMedidaController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteUnidadMedida(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteUnidadMedida(@PathVariable("id") Long id) {
         if (!unidadMedidaRepository.existsById(id)) {
             throw new RuntimeException("Unidad de medida no encontrada");
         }

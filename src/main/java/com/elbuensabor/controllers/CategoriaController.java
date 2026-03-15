@@ -32,7 +32,7 @@ public class CategoriaController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<CategoriaResponseDTO> getCategoriaById(@PathVariable Long id) {
+    public ResponseEntity<CategoriaResponseDTO> getCategoriaById(@PathVariable("id") Long id) {
         CategoriaResponseDTO categoria = categoriaService.findById(id);
         return ResponseEntity.ok(categoria);
     }
@@ -46,14 +46,14 @@ public class CategoriaController {
 
     @PutMapping("/{id}")
     public ResponseEntity<CategoriaResponseDTO> updateCategoria(
-            @PathVariable Long id,
+            @PathVariable("id") Long id,
             @Valid @RequestBody CategoriaRequestDTO categoriaRequestDTO) {
         CategoriaResponseDTO categoriaActualizada = categoriaService.updateCategoria(id, categoriaRequestDTO);
         return ResponseEntity.ok(categoriaActualizada);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteCategoria(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteCategoria(@PathVariable("id") Long id) {
         categoriaService.delete(id);
         return ResponseEntity.noContent().build();
     }
@@ -95,7 +95,7 @@ public class CategoriaController {
 
     @GetMapping("/{idPadre}/subcategorias")
     public ResponseEntity<List<CategoriaResponseDTO>> getSubcategoriasByPadre(
-            @PathVariable Long idPadre) {
+            @PathVariable("idPadre") Long idPadre) {
         List<CategoriaResponseDTO> subcategorias = categoriaService.findSubcategoriasByPadre(idPadre);
         return ResponseEntity.ok(subcategorias);
     }
@@ -103,7 +103,7 @@ public class CategoriaController {
     // ✅ NUEVO: Obtener subcategorías filtradas por tipo
     @GetMapping("/{idPadre}/subcategorias/tipo/{tipo}")
     public ResponseEntity<List<CategoriaResponseDTO>> getSubcategoriasByPadreAndTipo(
-            @PathVariable Long idPadre,
+            @PathVariable("idPadre") Long idPadre,
             @PathVariable TipoCategoria tipo) {
         List<CategoriaResponseDTO> subcategorias = categoriaService.findSubcategoriasByPadreAndTipo(idPadre, tipo);
         return ResponseEntity.ok(subcategorias);
@@ -135,13 +135,13 @@ public class CategoriaController {
     }
 
     @GetMapping("/{id}/has-subcategorias")
-    public ResponseEntity<Boolean> hasSubcategorias(@PathVariable Long id) {
+    public ResponseEntity<Boolean> hasSubcategorias(@PathVariable("id") Long id) {
         boolean hasSubcategorias = categoriaService.hasSubcategorias(id);
         return ResponseEntity.ok(hasSubcategorias);
     }
 
     @GetMapping("/{id}/has-articulos")
-    public ResponseEntity<Boolean> hasArticulos(@PathVariable Long id) {
+    public ResponseEntity<Boolean> hasArticulos(@PathVariable("id") Long id) {
         boolean hasArticulos = categoriaService.hasArticulos(id);
         return ResponseEntity.ok(hasArticulos);
     }

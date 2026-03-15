@@ -21,21 +21,18 @@ public interface CategoriaMapper extends BaseMapper<Categoria, CategoriaResponse
     @Mapping(target = "articulos", ignore = true)
     @Mapping(target = "categoriaPadre", ignore = true)
     @Mapping(target = "subcategorias", ignore = true)
-    @Mapping(target = "sucursales", ignore = true)
     Categoria toEntity(CategoriaRequestDTO dto);
 
     @Override
     @Mapping(target = "articulos", ignore = true)
     @Mapping(target = "categoriaPadre", ignore = true)
     @Mapping(target = "subcategorias", ignore = true)
-    @Mapping(target = "sucursales", ignore = true)
     Categoria toEntity(CategoriaResponseDTO dto);
 
     @Mapping(target = "idCategoria", ignore = true)
     @Mapping(target = "articulos", ignore = true)
     @Mapping(target = "categoriaPadre", ignore = true)
     @Mapping(target = "subcategorias", ignore = true)
-    @Mapping(target = "sucursales", ignore = true)
     void updateEntityFromDTO(CategoriaRequestDTO dto, @MappingTarget Categoria entity);
 
     @Override
@@ -43,6 +40,5 @@ public interface CategoriaMapper extends BaseMapper<Categoria, CategoriaResponse
     @Mapping(target = "articulos", ignore = true)
     @Mapping(target = "categoriaPadre", ignore = true)
     @Mapping(target = "subcategorias", ignore = true)
-    @Mapping(target = "sucursales", ignore = true)
     void updateEntityFromDTO(CategoriaResponseDTO dto, @MappingTarget Categoria entity);
 }
