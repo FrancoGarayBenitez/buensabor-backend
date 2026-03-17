@@ -158,10 +158,11 @@ public class PedidoController {
      */
     @GetMapping("/delivery")
     @PreAuthorize("hasAuthority('DELIVERY')")
-    public ResponseEntity<List<PedidoDeliveryResponse>> listarPedidosDelivery() {
+    public ResponseEntity<List<PedidoDeliveryResponse>> listarPedidosDelivery(
+            @AuthenticationPrincipal Usuario usuario) {
         logger.debug("📥 GET /api/pedidos/delivery - Listando pedidos para delivery");
 
-        List<PedidoDeliveryResponse> pedidos = service.listarPedidosDelivery();
+        List<PedidoDeliveryResponse> pedidos = service.listarPedidosDelivery(usuario);
         logger.info("✅ Se encontraron {} pedidos para delivery", pedidos.size());
         return ResponseEntity.ok(pedidos);
     }
@@ -244,7 +245,7 @@ public class PedidoController {
      * Cancela un pedido (CLIENTE/CAJERO/ADMIN)
      */
     @PutMapping("/cancelar")
-    @PreAuthorize("hasAnyAuthority('CLIENTE', 'CAJERO', 'ADMIN', 'COCINERO')")
+    @PreAuthorize("hasAnyAuthority('CLIENTE', 'CAJERO', 'ADMIN', 'COCINERO', 'DELIVERY')")
     public ResponseEntity<?> cancelarPedido(
             @Valid @RequestBody CancelarPedidoRequest request,
             @AuthenticationPrincipal Usuario usuario) {

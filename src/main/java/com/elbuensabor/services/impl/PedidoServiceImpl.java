@@ -190,11 +190,9 @@ public class PedidoServiceImpl implements IPedidoService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PedidoDeliveryResponse> listarPedidosDelivery() {
-        log.info("Listando pedidos listos para delivery sin asignar");
-
-        // ✅ Usa el método específico
-        return pedidoRepository.findPedidosListosSinDelivery()
+    public List<PedidoDeliveryResponse> listarPedidosDelivery(Usuario usuario) {
+        log.info("Listando pedidos asignados al delivery {}", usuario.getEmail());
+        return pedidoRepository.findByUsuarioDelivery_IdUsuarioOrderByFechaDesc(usuario.getIdUsuario())
                 .stream()
                 .map(pedidoMapper::toDeliveryResponse)
                 .collect(Collectors.toList());
@@ -332,6 +330,7 @@ public class PedidoServiceImpl implements IPedidoService {
             case ADMIN, CAJERO -> pedidoMapper.toAdminResponse(pedidoCancelado);
             case COCINERO -> pedidoMapper.toCocineroResponse(pedidoCancelado);
             case CLIENTE -> pedidoMapper.toClienteResponse(pedidoCancelado);
+            case DELIVERY -> pedidoMapper.toDeliveryResponse(pedidoCancelado);
             default -> throw new IllegalArgumentException("Rol no autorizado para cancelar pedidos");
         };
     }

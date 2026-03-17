@@ -139,6 +139,14 @@ public interface IPedidoRepository extends JpaRepository<Pedido, Long> {
                         "AND p.estado = 'LISTO' AND p.tipoEnvio = 'DELIVERY' ORDER BY p.fecha ASC")
         List<Pedido> findPedidosListosParaDelivery(@Param("idDelivery") Long idDelivery);
 
+        /**
+         * Obtiene pedidos listos para un delivery específico, ordenados por fecha
+         * descendente
+         */
+        @Query("SELECT p FROM Pedido p WHERE p.usuarioDelivery.idUsuario = :idDelivery " +
+                        "AND p.estado = 'LISTO' AND p.tipoEnvio = 'DELIVERY' ORDER BY p.fecha DESC")
+        List<Pedido> findByUsuarioDelivery_IdUsuarioOrderByFechaDesc(@Param("idDelivery") Long idDelivery);
+
         // ==================== CONSULTAS ESTADÍSTICAS ====================
 
         /**

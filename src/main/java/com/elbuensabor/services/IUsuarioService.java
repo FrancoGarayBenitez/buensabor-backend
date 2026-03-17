@@ -42,4 +42,9 @@ public interface IUsuarioService {
      */
     Long obtenerIdUsuarioPorEmail(String email);
 
+    /**
+     * Obtiene todos los usuarios por rol
+     */
+    List<EmpleadoResponseDTO> obtenerUsuariosPorRol(String rol);
+
 }

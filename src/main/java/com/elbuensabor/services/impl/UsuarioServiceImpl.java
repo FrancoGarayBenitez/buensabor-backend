@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Implementación del servicio de gestión de usuarios
@@ -157,5 +158,23 @@ public class UsuarioServiceImpl implements IUsuarioService {
         return usuarioRepository.findByEmail(email)
                 .map(Usuario::getIdUsuario)
                 .orElse(null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EmpleadoResponseDTO> obtenerUsuariosPorRol(String rol) {
+        logger.debug("Obteniendo usuarios con rol: {}", rol);
+        Rol rolEnum = Rol.valueOf(rol.toUpperCase());
+
+        return usuarioRepository.findByRolAndActivoTrue(rolEnum).stream()
+                .map(u -> new EmpleadoResponseDTO(
+                        u.getIdUsuario(),
+                        u.getEmail(),
+                        u.getRol().toString(),
+                        u.getNombre(),
+                        u.getApellido(),
+                        u.isActivo(),
+                        null))
+                .collect(Collectors.toList());
     }
 }

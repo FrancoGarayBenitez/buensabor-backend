@@ -108,7 +108,7 @@ public class SecurityConfig {
                         // ✅ FIX: El endpoint es /cancelar sin /{id}, y también CAJERO/ADMIN pueden
                         // cancelar
                         .requestMatchers(HttpMethod.PUT, "/api/pedidos/cancelar")
-                        .hasAnyAuthority("CLIENTE", "CAJERO", "ADMIN", "COCINERO")
+                        .hasAnyAuthority("CLIENTE", "CAJERO", "ADMIN", "COCINERO", "DELIVERY")
 
                         // Cajero gestiona pedidos del día y confirmación de pago
                         .requestMatchers(HttpMethod.GET, "/api/pedidos/del-dia").hasAnyAuthority("CAJERO", "ADMIN")
@@ -138,6 +138,10 @@ public class SecurityConfig {
 
                         // ==================== GESTIÓN DE CLIENTES ====================
                         .requestMatchers("/api/clientes/**").hasAnyAuthority("CLIENTE", "ADMIN")
+
+                        // Obtener usuarios por rol (ADMIN / CAJERO (Asigna deliveries en pedido))
+                        .requestMatchers(HttpMethod.GET, "/api/usuarios/por-rol/**")
+                        .hasAnyAuthority("ADMIN", "CAJERO")
 
                         // ==================== GESTIÓN ADMINISTRATIVA (SOLO ADMIN) ====================
                         .requestMatchers("/api/usuarios/**").hasAuthority("ADMIN")

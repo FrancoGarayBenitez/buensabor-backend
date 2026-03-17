@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface IUsuarioRepository extends JpaRepository<Usuario, Long> {
@@ -23,7 +24,7 @@ public interface IUsuarioRepository extends JpaRepository<Usuario, Long> {
     /**
      * Cuenta usuarios activos por rol (si tienes campo activo)
      */
-    // long countByRolAndActivo(Rol rol, boolean activo);
+    List<Usuario> findByRolAndActivoTrue(Rol rol);
 
     /**
      * Buscar usuario por token de reseteo

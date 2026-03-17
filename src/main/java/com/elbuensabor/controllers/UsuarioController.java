@@ -54,6 +54,20 @@ public class UsuarioController {
         return ResponseEntity.ok(usuario);
     }
 
+    /**
+     * GET /api/usuarios/por-rol/{rol}
+     * Devuelve usuarios activos según su rol.
+     * Accesible por ADMIN y CAJERO (para asignar deliveries).
+     */
+    @GetMapping("/por-rol/{rol}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'CAJERO')")
+    public ResponseEntity<List<EmpleadoResponseDTO>> obtenerUsuariosPorRol(
+            @PathVariable("rol") String rol) {
+        logger.info("🎯 Solicitando usuarios con rol: {}", rol);
+        List<EmpleadoResponseDTO> usuarios = usuarioService.obtenerUsuariosPorRol(rol);
+        return ResponseEntity.ok(usuarios);
+    }
+
     // ==================== ENDPOINTS DE GESTIÓN DE ROLES ====================
 
     /**

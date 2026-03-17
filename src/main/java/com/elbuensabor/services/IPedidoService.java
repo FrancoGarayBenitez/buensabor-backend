@@ -46,7 +46,7 @@ public interface IPedidoService {
     /**
      * Obtiene pedidos listos para entregar (DELIVERY)
      */
-    List<PedidoDeliveryResponse> listarPedidosDelivery();
+    List<PedidoDeliveryResponse> listarPedidosDelivery(Usuario usuario);
 
     /**
      * Obtiene pedidos de un cliente específico (CLIENTE)
