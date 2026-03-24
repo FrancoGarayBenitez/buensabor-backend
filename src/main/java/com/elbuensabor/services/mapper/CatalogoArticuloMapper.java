@@ -71,6 +71,8 @@ public interface CatalogoArticuloMapper {
         // Imagen principal
         setImagenPrincipal(dto, entity.getImagenes());
 
+        dto.setTipoArticulo("MANUFACTURADO");
+
         return dto;
     }
 
@@ -84,6 +86,7 @@ public interface CatalogoArticuloMapper {
         // ✅ Insumo de venta directa usa precioVenta (no precioCompra)
         dto.setPrecioOriginal(entity.getPrecioVenta());
         dto.setPrecioFinal(entity.getPrecioVenta());
+        dto.setTipoArticulo("INSUMO");
 
         // Los insumos no tienen tiempo de preparación
         dto.setTiempoEstimadoEnMinutos(0);

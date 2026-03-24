@@ -37,7 +37,7 @@ public class ImageController {
     public ResponseEntity<?> uploadImage(
             @RequestParam("file") MultipartFile file,
             @RequestParam("denominacion") String denominacion,
-            @PathVariable String entityType) {
+            @PathVariable("entityType") String entityType) {
         try {
             String imageUrl = imagenService.uploadPhysicalFileAndGetUrl(file);
 

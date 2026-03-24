@@ -38,4 +38,7 @@ public class CatalogoArticuloDTO {
 
     // Imagen principal (solo la primera)
     private ImagenDTO imagenPrincipal;
+
+    // Tipo de artículo
+    private String tipoArticulo; // "MANUFACTURADO" o "INSUMO"
 }
