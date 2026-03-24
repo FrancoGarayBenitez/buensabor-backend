@@ -38,3 +38,6 @@ out/
 
 ### Imágenes ###
 src/main/resources/static/img
+
+### Configuración sensible ###
+src/main/resources/application.properties
